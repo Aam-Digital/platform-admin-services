@@ -26,11 +26,12 @@ async function bootstrap() {
 
   // OpenAPI / Swagger
   const config = new DocumentBuilder()
-    .setTitle('Aam Digital Admin API')
-    .setDescription('Instance Management Module')
-    .setVersion('1.0.0')
+    .setTitle("Aam Digital Admin API")
+    .setDescription("Instance Management Module")
+    .setVersion("1.0.0")
     .addBearerAuth()
-    .addServer('https://admin.aam-digital.com/api/v1', 'Production')
+    .addServer("http://localhost:3000", "Local")
+    .addServer("https://admin.aam-digital.com/api/v1", "Production")
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api/docs', app, document);
