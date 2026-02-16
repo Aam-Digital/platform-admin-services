@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - '**'
+      - "**"
 
 jobs:
   test:
@@ -26,6 +26,11 @@ jobs:
 
       - name: Run unit tests with coverage
         run: npm run test:cov
+
+      - uses: qltysh/qlty-action/coverage@v1
+        with:
+          oidc: true
+          files: coverage/lcov.info
 
       - name: Run e2e tests
         run: npm run test:e2e
