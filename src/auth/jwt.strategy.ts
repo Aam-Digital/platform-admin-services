@@ -1,10 +1,10 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
-import { PassportStrategy } from '@nestjs/passport';
-import { passportJwtSecret } from 'jwks-rsa';
-import { ExtractJwt, Strategy } from 'passport-jwt';
+import { Injectable, UnauthorizedException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
+import { PassportStrategy } from "@nestjs/passport";
+import { passportJwtSecret } from "jwks-rsa";
+import { ExtractJwt, Strategy } from "passport-jwt";
 
-const GITHUB_OIDC_ISSUER = 'https://token.actions.githubusercontent.com';
+const GITHUB_OIDC_ISSUER = "https://token.actions.githubusercontent.com";
 const GITHUB_OIDC_JWKS_URI = `${GITHUB_OIDC_ISSUER}/.well-known/jwks`;
 
 @Injectable()
@@ -13,13 +13,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   private readonly expectedRepository: string;
 
   constructor(configService: ConfigService) {
-    const audience = configService.getOrThrow<string>('GITHUB_OIDC_AUDIENCE');
-    const repository = configService.getOrThrow<string>('GITHUB_REPOSITORY');
+    const audience = configService.getOrThrow<string>("GITHUB_OIDC_AUDIENCE");
+    const repository = configService.getOrThrow<string>("GITHUB_REPOSITORY");
 
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
       ignoreExpiration: false,
-      algorithms: ['RS256'],
+      algorithms: ["RS256"],
       issuer: GITHUB_OIDC_ISSUER,
       audience,
       secretOrKeyProvider: passportJwtSecret({

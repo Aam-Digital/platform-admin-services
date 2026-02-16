@@ -21,6 +21,11 @@ module.exports = tseslint.config(
         { argsIgnorePattern: '^_' },
       ],
       '@typescript-eslint/no-explicit-any': 'off',
+      quotes: [
+        'error',
+        'double',
+        { avoidEscape: true, allowTemplateLiterals: true },
+      ],
     },
   },
   {

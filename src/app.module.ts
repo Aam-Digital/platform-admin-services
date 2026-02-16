@@ -1,12 +1,12 @@
-import { Module } from '@nestjs/common';
-import { ConfigModule, ConfigService } from '@nestjs/config';
-import { APP_GUARD } from '@nestjs/core';
-import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
-import { TypeOrmModule } from '@nestjs/typeorm';
-import { SentryModule } from '@sentry/nestjs/setup';
-import { AuthModule } from './auth/auth.module';
-import { Instance } from './instance/instance.entity';
-import { InstanceModule } from './instance/instance.module';
+import { Module } from "@nestjs/common";
+import { ConfigModule, ConfigService } from "@nestjs/config";
+import { APP_GUARD } from "@nestjs/core";
+import { ThrottlerGuard, ThrottlerModule } from "@nestjs/throttler";
+import { TypeOrmModule } from "@nestjs/typeorm";
+import { SentryModule } from "@sentry/nestjs/setup";
+import { AuthModule } from "./auth/auth.module";
+import { Instance } from "./instance/instance.entity";
+import { InstanceModule } from "./instance/instance.module";
 
 @Module({
   imports: [
@@ -19,15 +19,15 @@ import { InstanceModule } from './instance/instance.module';
       imports: [ConfigModule],
       inject: [ConfigService],
       useFactory: (config: ConfigService) => ({
-        type: 'postgres' as const,
-        host: config.get<string>('POSTGRES_HOST', 'localhost'),
-        port: config.get<number>('POSTGRES_PORT', 5432),
-        username: config.get<string>('POSTGRES_USER', 'aam_admin'),
-        password: config.get<string>('POSTGRES_PASSWORD', 'aam_admin_secret'),
-        database: config.get<string>('POSTGRES_DB', 'aam_admin'),
+        type: "postgres" as const,
+        host: config.get<string>("POSTGRES_HOST", "localhost"),
+        port: config.get<number>("POSTGRES_PORT", 5432),
+        username: config.get<string>("POSTGRES_USER", "aam_admin"),
+        password: config.get<string>("POSTGRES_PASSWORD", "aam_admin_secret"),
+        database: config.get<string>("POSTGRES_DB", "aam_admin"),
         entities: [Instance],
-        synchronize: config.get<string>('NODE_ENV') !== 'production',
-        logging: config.get<string>('NODE_ENV') !== 'production',
+        synchronize: config.get<string>("NODE_ENV") !== "production",
+        logging: config.get<string>("NODE_ENV") !== "production",
       }),
     }),
 

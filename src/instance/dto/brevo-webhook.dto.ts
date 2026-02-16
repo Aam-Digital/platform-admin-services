@@ -1,5 +1,5 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { Type } from "class-transformer";
 import {
     IsEmail,
     IsInt,
@@ -7,10 +7,10 @@ import {
     IsOptional,
     IsString,
     ValidateNested,
-} from 'class-validator';
+} from "class-validator";
 
 export class BrevoWebhookAttributes {
-  @ApiProperty({ description: 'Instance name to create.', example: 'test-mon16' })
+  @ApiProperty({ description: "Instance name to create.", example: "test-mon16" })
   @IsString()
   AAM_SYSTEM: string;
 
@@ -19,7 +19,7 @@ export class BrevoWebhookAttributes {
 }
 
 export class BrevoWebhookDto {
-  @ApiPropertyOptional({ example: 'workflow-action-processor' })
+  @ApiPropertyOptional({ example: "workflow-action-processor" })
   @IsOptional()
   @IsString()
   appName?: string;
@@ -36,8 +36,8 @@ export class BrevoWebhookDto {
   contact_id?: number;
 
   @ApiProperty({
-    description: 'Email of the contact, used as owner email.',
-    example: 'webmaster@aam-digital.com',
+    description: "Email of the contact, used as owner email.",
+    example: "webmaster@aam-digital.com",
   })
   @IsEmail()
   email: string;

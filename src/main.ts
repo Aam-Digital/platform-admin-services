@@ -1,19 +1,19 @@
-import './instrument';
+import "./instrument";
 
-import { ValidationPipe } from '@nestjs/common';
-import { NestFactory } from '@nestjs/core';
-import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from './app.module';
+import { ValidationPipe } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
   // Trust proxy headers (for IP extraction behind reverse proxy)
   const expressApp = app.getHttpAdapter().getInstance();
-  expressApp.set('trust proxy', true);
+  expressApp.set("trust proxy", true);
 
   // Global prefix
-  app.setGlobalPrefix('api/v1');
+  app.setGlobalPrefix("api/v1");
 
   // Validation
   app.useGlobalPipes(
@@ -34,7 +34,7 @@ async function bootstrap() {
     .addServer("https://admin.aam-digital.com/api/v1", "Production")
     .build();
   const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api/docs', app, document);
+  SwaggerModule.setup("api/docs", app, document);
 
   const port = process.env.PORT ?? 3000;
   await app.listen(port);
