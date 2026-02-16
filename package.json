@@ -1,7 +1,7 @@
 {
   "name": "aam-admin",
-  "version": "1.0.0",
-  "description": "Aam Digital Admin API - Instance Management",
+  "version": "0.1.0",
+  "description": "Aam Digital Admin API",
   "private": true,
   "license": "GPL-3.0-only",
   "scripts": {
