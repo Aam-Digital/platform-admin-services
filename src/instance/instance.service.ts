@@ -1,14 +1,12 @@
 import {
-    ConflictException,
-    Injectable,
-    Logger,
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import {
-    AvailabilityCheckDto,
-    CreateInstanceDto,
-} from "./dto";
+import { AvailabilityCheckDto, CreateInstanceDto } from "./dto";
 import { INSTANCE_NAME_PATTERN } from "./dto/create-instance.dto";
 import { Instance } from "./instance.entity";
 
@@ -16,6 +14,7 @@ import { Instance } from "./instance.entity";
 const RESERVED_NAMES = new Set([
   "www",
   "admin",
+  "aam",
   "api",
   "app",
   "mail",
@@ -42,13 +41,22 @@ export class InstanceService {
   }
 
   async create(dto: CreateInstanceDto): Promise<Instance> {
-    const existing = await this.instanceRepo.findOneBy({ name: dto.name });
-    if (existing) {
-      throw new ConflictException(`Instance name "${dto.name}" is already taken.`);
-    }
-
-    if (RESERVED_NAMES.has(dto.name)) {
-      throw new ConflictException(`Instance name "${dto.name}" is reserved.`);
+    const availability = await this.checkAvailability(dto.name);
+    if (!availability.available) {
+      switch (availability.reason) {
+        case "reserved":
+          throw new ConflictException(
+            `Instance name "${dto.name}" is reserved.`,
+          );
+        case "taken":
+          throw new ConflictException(
+            `Instance name "${dto.name}" is already taken.`,
+          );
+        default:
+          throw new BadRequestException(
+            `Instance name "${dto.name}" is invalid.`,
+          );
+      }
     }
 
     const instance = this.instanceRepo.create({
