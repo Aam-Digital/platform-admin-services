@@ -6,6 +6,10 @@ on:
       - main
       - "**"
 
+permissions:
+  contents: read
+  id-token: write # for QLTY code coverage (https://docs.qlty.sh/migration/coverage)
+
 jobs:
   test:
     name: Test
