@@ -2,7 +2,7 @@ import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import * as request from "supertest";
+import request from "supertest";
 import { Instance } from "../src/instance/instance.entity";
 import { InstanceModule } from "../src/instance/instance.module";
 
