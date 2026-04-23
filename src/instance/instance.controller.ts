@@ -1,33 +1,34 @@
 import {
-    Body,
-    Controller,
-    Get,
-    HttpCode,
-    HttpStatus,
-    Param,
-    Post,
-    Query,
-    UseGuards,
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Post,
+  Query,
+  UseGuards,
 } from "@nestjs/common";
 import {
-    ApiBearerAuth,
-    ApiConflictResponse,
-    ApiCreatedResponse,
-    ApiOkResponse,
-    ApiOperation,
-    ApiParam,
-    ApiQuery,
-    ApiTags,
-    ApiTooManyRequestsResponse,
-    ApiUnauthorizedResponse,
+  ApiBasicAuth,
+  ApiBearerAuth,
+  ApiConflictResponse,
+  ApiCreatedResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiTags,
+  ApiTooManyRequestsResponse,
+  ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
-import { JwtAuthGuard } from "../auth/jwt-auth.guard";
+import { JwtOrBasicAuthGuard } from "../auth/jwt-or-basic-auth.guard";
 import {
-    AvailabilityCheckDto,
-    BrevoWebhookDto,
-    CreateInstanceDto,
-    InstanceResponseDto,
+  AvailabilityCheckDto,
+  BrevoWebhookDto,
+  CreateInstanceDto,
+  InstanceResponseDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
@@ -38,8 +39,9 @@ export class InstanceController {
   constructor(private readonly instanceService: InstanceService) {}
 
   @Get()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrBasicAuthGuard)
   @ApiBearerAuth()
+  @ApiBasicAuth()
   @ApiOperation({
     summary: "Get all instances",
     operationId: "getAllInstances",
@@ -56,8 +58,9 @@ export class InstanceController {
   }
 
   @Post()
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtOrBasicAuthGuard)
   @ApiBearerAuth()
+  @ApiBasicAuth()
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary: "Create a new instance",
