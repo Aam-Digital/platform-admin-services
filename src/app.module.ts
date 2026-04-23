@@ -28,7 +28,7 @@ import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateI
         database: config.get<string>("POSTGRES_DB", "aam_admin"),
         entities: [Instance],
         migrations: [CreateInstances1745400000000],
-        migrationsRun: true,
+        migrationsRun: config.get<string>("NODE_ENV") === "production",
         synchronize: config.get<string>("NODE_ENV") !== "production",
         logging: config.get<string>("NODE_ENV") !== "production",
       }),

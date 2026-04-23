@@ -6,8 +6,8 @@ NestJS API for managing Aam Digital SaaS instances.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/instances` | Bearer JWT | List all instances |
-| `POST` | `/api/v1/instances` | Bearer JWT | Create a new instance |
+| `GET` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | List all instances |
+| `POST` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | Create a new instance |
 | `POST` | `/api/v1/instances/webhook/brevo` | Token + IP whitelist | Brevo webhook to create instance |
 | `GET` | `/api/v1/instances/check/:name` | Public (rate-limited) | Check name availability |
 

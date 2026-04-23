@@ -51,7 +51,8 @@ export class InstanceController {
     type: [InstanceResponseDto],
   })
   @ApiUnauthorizedResponse({
-    description: "Authentication required or token invalid.",
+    description:
+      "Authentication required – invalid or missing JWT token or Basic credentials.",
   })
   async findAll(): Promise<InstanceResponseDto[]> {
     return this.instanceService.findAll();
@@ -72,7 +73,8 @@ export class InstanceController {
   })
   @ApiConflictResponse({ description: "Instance name is already taken." })
   @ApiUnauthorizedResponse({
-    description: "Authentication required or token invalid.",
+    description:
+      "Authentication required – invalid or missing JWT token or Basic credentials.",
   })
   async create(@Body() dto: CreateInstanceDto): Promise<InstanceResponseDto> {
     return this.instanceService.create(dto);
