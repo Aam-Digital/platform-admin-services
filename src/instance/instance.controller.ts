@@ -1,36 +1,36 @@
 import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Param,
-  Post,
-  Query,
-  UseGuards,
+    Body,
+    Controller,
+    Get,
+    HttpCode,
+    HttpStatus,
+    Param,
+    Post,
+    Query,
+    UseGuards,
 } from "@nestjs/common";
 import {
-  ApiBearerAuth,
-  ApiConflictResponse,
-  ApiCreatedResponse,
-  ApiOkResponse,
-  ApiOperation,
-  ApiParam,
-  ApiQuery,
-  ApiTags,
-  ApiTooManyRequestsResponse,
-  ApiUnauthorizedResponse,
+    ApiBearerAuth,
+    ApiConflictResponse,
+    ApiCreatedResponse,
+    ApiOkResponse,
+    ApiOperation,
+    ApiParam,
+    ApiQuery,
+    ApiTags,
+    ApiTooManyRequestsResponse,
+    ApiUnauthorizedResponse,
 } from "@nestjs/swagger";
 import { Throttle } from "@nestjs/throttler";
+import { JwtAuthGuard } from "../auth/jwt-auth.guard";
 import {
-  AvailabilityCheckDto,
-  BrevoWebhookDto,
-  CreateInstanceDto,
-  InstanceResponseDto,
+    AvailabilityCheckDto,
+    BrevoWebhookDto,
+    CreateInstanceDto,
+    InstanceResponseDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
-import { JwtAuthGuard } from "@/auth/jwt-auth.guard";
 
 @ApiTags("Instances")
 @Controller("instances")

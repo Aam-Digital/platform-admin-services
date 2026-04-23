@@ -9,16 +9,15 @@
     "target": "ES2021",
     "sourceMap": true,
     "outDir": "./dist",
-    "baseUrl": "./",
+    "rootDir": "./",
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": true,
     "noImplicitAny": true,
+    "strictPropertyInitialization": false,
     "strictBindCallApply": true,
     "forceConsistentCasingInFileNames": true,
     "noFallthroughCasesInSwitch": true,
-    "paths": {
-      "@/*": ["src/*"]
-    }
+    "types": ["jest", "node"]
   }
 }
