@@ -1,0 +1,57 @@
+name: Build and publish container image
+
+on:
+    workflow_call:
+        inputs:
+            docker_tags:
+                type: string
+                required: true
+                description: Docker tags configuration for docker/metadata-action (multiline
+                    string)
+
+permissions:
+    contents: read
+    packages: write
+
+env:
+    GHCR_IMAGE: ghcr.io/${{ github.repository }}
+
+jobs:
+    build-image:
+        name: Build and publish container image
+        runs-on: ubuntu-latest
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v4
+
+            - name: Docker meta
+              id: meta
+              uses: docker/metadata-action@v5
+              with:
+                  images: |
+                      ${{ env.GHCR_IMAGE }}
+                  tags: ${{ inputs.docker_tags }}
+
+            - name: Set up QEMU
+              uses: docker/setup-qemu-action@v3
+
+            - name: Set up Docker Buildx
+              uses: docker/setup-buildx-action@v3
+
+            - name: Login to GitHub Container Registry
+              uses: docker/login-action@v3
+              with:
+                  registry: ghcr.io
+                  username: ${{ github.actor }}
+                  password: ${{ secrets.GITHUB_TOKEN }}
+
+            - name: Build and push multi-platform image
+              uses: docker/build-push-action@v6
+              with:
+                  platforms: linux/amd64,linux/arm64
+                  context: ./
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  push: true
+                  cache-from: type=gha
+                  cache-to: type=gha,mode=min

@@ -27,31 +27,13 @@ jobs:
       - name: Run e2e tests
         run: npm run test:e2e
 
-  build_and_publish_branch:
-    name: Build and publish PR image
-    runs-on: ubuntu-latest
-    needs:
-      - test
+  build:
+    needs: test
+    uses: ./.github/workflows/_build.yml
+    with:
+      docker_tags: |
+        type=raw,value=pr-${{ github.event.number }}
     permissions:
       contents: read
       packages: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          platforms: linux/amd64
-          context: ./
-          push: true
-          tags: ghcr.io/aam-digital/platform-admin-services:pr-${{ github.event.number }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
