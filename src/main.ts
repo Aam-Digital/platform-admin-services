@@ -7,6 +7,7 @@ import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.enableCors();
 
   // Trust proxy headers (for IP extraction behind reverse proxy)
   const expressApp = app.getHttpAdapter().getInstance();
@@ -31,8 +32,6 @@ async function bootstrap() {
     .setVersion("1.0.0")
     .addBearerAuth()
     .addBasicAuth()
-    .addServer("http://localhost:3000", "Local")
-    .addServer("https://admin.aam-digital.com/api/v1", "Production")
     .build();
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup("api/docs", app, document);
