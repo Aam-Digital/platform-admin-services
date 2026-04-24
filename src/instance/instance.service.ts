@@ -4,6 +4,7 @@ import {
   Injectable,
   Logger,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { AvailabilityCheckDto, CreateInstanceDto } from "./dto";
@@ -34,6 +35,7 @@ export class InstanceService {
   constructor(
     @InjectRepository(Instance)
     private readonly instanceRepo: Repository<Instance>,
+    private readonly configService: ConfigService,
   ) {}
 
   async findAll(): Promise<Instance[]> {
@@ -67,7 +69,33 @@ export class InstanceService {
 
     const saved = await this.instanceRepo.save(instance);
     this.logger.log(`Instance "${saved.name}" created for ${saved.ownerEmail}`);
+
+    this.triggerPulumiUp().catch((err) => {
+      this.logger.warn(`Failed to trigger pulumi-up workflow: ${err.message}`);
+    });
+
     return saved;
+  }
+
+  private async triggerPulumiUp(): Promise<void> {
+    const token = this.configService.getOrThrow<string>("GITHUB_API_TOKEN");
+    const response = await fetch(
+      "https://api.github.com/repos/Aam-Digital/aam-cloud-infrastructure/actions/workflows/pulumi-up.yml/dispatches",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ ref: "main", inputs: { stack: "production" } }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`GitHub API responded with ${response.status}: ${body}`);
+    }
   }
 
   async checkAvailability(name: string): Promise<AvailabilityCheckDto> {

@@ -23,6 +23,7 @@ The following environment variables should be set:
   - `ADMIN_PASSWORD` (static password for access with Basic Auth user "admin")
 - **Sentry**: `SENTRY_DSN`, `SENTRY_ENVIRONMENT`
 - **Brevo Webhook**: `BREVO_WEBHOOK_TOKEN`, `BREVO_ALLOWED_IPS`
+- **GitHub API**: `GITHUB_API_TOKEN` — PAT with `actions:write` on `Aam-Digital/aam-cloud-infrastructure`, used to trigger the `pulumi-up` workflow on instance creation
 
 ---
 
