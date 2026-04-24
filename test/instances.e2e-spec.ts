@@ -74,7 +74,7 @@ describe("Instances (e2e)", () => {
         InstanceModule,
       ],
     })
-      .overrideGuard(await import("../src/auth/jwt-auth.guard").then((m) => m.JwtAuthGuard))
+      .overrideGuard(await import("../src/auth/jwt-or-basic-auth.guard").then((m) => m.JwtOrBasicAuthGuard))
       .useClass(MockJwtAuthGuard)
       .overrideGuard(
         await import("../src/instance/guards/brevo-webhook.guard").then(

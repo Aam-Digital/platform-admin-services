@@ -30,6 +30,7 @@ async function bootstrap() {
     .setDescription("Instance Management Module")
     .setVersion("1.0.0")
     .addBearerAuth()
+    .addBasicAuth()
     .addServer("http://localhost:3000", "Local")
     .addServer("https://admin.aam-digital.com/api/v1", "Production")
     .build();

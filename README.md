@@ -2,16 +2,33 @@
 
 NestJS API for managing Aam Digital SaaS instances.
 
-## Endpoints
+## API Use
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/instances` | Bearer JWT | List all instances |
-| `POST` | `/api/v1/instances` | Bearer JWT | Create a new instance |
+| `GET` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | List all instances |
+| `POST` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | Create a new instance |
 | `POST` | `/api/v1/instances/webhook/brevo` | Token + IP whitelist | Brevo webhook to create instance |
 | `GET` | `/api/v1/instances/check/:name` | Public (rate-limited) | Check name availability |
 
-## Getting Started
+For API specs refer to the OpenAPI docs (generated at runtime) available at `/api/docs`.
+
+### Configuration
+
+The following environment variables should be set:
+
+- **Database**: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
+- **Auth**:
+  - `JWT_SECRET`
+  - `ADMIN_PASSWORD` (static password for access with Basic Auth user "admin")
+- **Sentry**: `SENTRY_DSN`, `SENTRY_ENVIRONMENT`
+- **Brevo Webhook**: `BREVO_WEBHOOK_TOKEN`, `BREVO_ALLOWED_IPS`
+
+---
+
+## Development
+
+### Getting Started
 
 ```bash
 # 1. Copy environment config
@@ -29,17 +46,13 @@ npm run start:dev
 
 Swagger UI is available at `http://localhost:3000/api/docs`.
 
-## Testing
+### Testing
 
 ```bash
 npm test
 ```
 
-## Configuration
+### Configuration for local development
 
-See [.env.example](.env.example) for all available environment variables:
-
-- **Database**: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- **Auth**: `JWT_SECRET`
-- **Sentry**: `SENTRY_DSN`, `SENTRY_ENVIRONMENT`
-- **Brevo Webhook**: `BREVO_WEBHOOK_TOKEN`, `BREVO_ALLOWED_IPS`
+See [.env.example](.env.example) for all available environment variables
+and check section above.
