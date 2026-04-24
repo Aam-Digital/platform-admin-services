@@ -1,0 +1,15 @@
+name: Publish preview container image
+
+on:
+  push:
+    branches:
+      - preview
+
+jobs:
+  build:
+    name: Build and publish preview container image
+    uses: ./.github/workflows/_build.yml
+    with:
+      docker_tags: |
+        type=raw,value=preview
+    secrets: inherit

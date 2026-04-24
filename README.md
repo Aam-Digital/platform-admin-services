@@ -26,6 +26,14 @@ The following environment variables should be set:
 
 ---
 
+## Deployment
+
+Container images are published to `ghcr.io/aam-digital/aam-platform-admin-services`.
+
+Pushing to `main` triggers a release (via semantic-release) and publishes a versioned image. Pushing to `preview` publishes an image tagged `preview`.
+
+---
+
 ## Development
 
 ### Getting Started
