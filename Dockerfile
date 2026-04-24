@@ -6,9 +6,6 @@ WORKDIR /usr/src/app
 
 COPY --chown=node:node package*.json ./
 
-# Install devDependencies for the build step, then prune later.
-ENV NODE_ENV="development"
-
 RUN npm ci --ignore-scripts --include=dev
 
 COPY --chown=node:node . .
@@ -23,4 +20,4 @@ ENV PORT=3000
 
 EXPOSE 3000
 
-CMD [ "node", "dist/main.js" ]
+CMD [ "node", "dist/src/main.js" ]
