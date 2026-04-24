@@ -1,4 +1,5 @@
 import { ConflictException } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -21,6 +22,10 @@ describe("InstanceService", () => {
             create: jest.fn(),
             save: jest.fn(),
           },
+        },
+        {
+          provide: ConfigService,
+          useValue: { getOrThrow: jest.fn().mockReturnValue("test-token") },
         },
       ],
     }).compile();

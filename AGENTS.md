@@ -4,7 +4,7 @@ This file provides guidance to coding agenst when working with code in this repo
 
 ## Functionality
 
-Admin backend for Aam Digital's SaaS platform. Tracks and provisions customer instances (each mapped to a subdomain like `my-org.aam-digital.com`). Consumed by GitHub Actions for deployment automation and by Brevo email marketing webhooks to trigger instance creation from onboarding workflows.
+Admin backend for Aam Digital's SaaS platform. Tracks and provisions customer instances (each mapped to a subdomain like `my-org.aam-digital.com`). On instance creation, triggers the `pulumi-up` workflow (`stack=production`) in `Aam-Digital/aam-cloud-infrastructure` via GitHub workflow dispatch to provision the infrastructure.
 
 ## Architecture
 
