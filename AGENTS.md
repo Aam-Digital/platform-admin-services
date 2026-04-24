@@ -4,8 +4,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Functionality
 
-Admin backend for Aam Digital's SaaS platform. Tracks and provisions customer instances (each mapped to a subdomain like `my-org.aam-digital.com`). Consumed by GitHub Actions for deployment automation and by Brevo email marketing webhooks to trigger instance creation from onboarding workflows.
-
+Admin backend for Aam Digital's SaaS platform. Tracks and provisions customer instances (each mapped to a subdomain like `my-org.aam-digital.com`). On instance creation, triggers the `pulumi-up-instances` workflow in `Aam-Digital/aam-cloud-infrastructure` via GitHub workflow dispatch, passing the stack name from `PULUMI_STACK`.
 ## Architecture
 
 NestJS REST API managing lifecycle of Aam Digital SaaS instances. PostgreSQL via TypeORM. Deployed via semantic-release on push to main.
@@ -20,6 +19,9 @@ NestJS REST API managing lifecycle of Aam Digital SaaS instances. PostgreSQL via
 - `POST /api/v1/instances` — Bearer JWT / Basic Auth (admin), creates instance
 - `GET /api/v1/instances/check/:name` — Public (rate-limited 10/min), checks name availability; returns `{ name, available, reason: 'invalid' | 'reserved' | 'taken' | null }`
 - `POST /api/v1/instances/webhook/brevo` — Brevo webhook, protected by `BrevoWebhookGuard`
+
+**Conventions:**
+- Read required env vars via `configService.getOrThrow` in the constructor and store them as instance fields — fail at startup, not at runtime.
 
 **Testing approach:**
 - Unit tests mock repositories; E2E tests use in-memory SQLite and replace JWT/Brevo guards with mocks.

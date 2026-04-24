@@ -1,9 +1,11 @@
+import * as Sentry from "@sentry/nestjs";
 import {
   BadRequestException,
   ConflictException,
   Injectable,
   Logger,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { AvailabilityCheckDto, CreateInstanceDto } from "./dto";
@@ -30,11 +32,18 @@ const RESERVED_NAMES = new Set([
 @Injectable()
 export class InstanceService {
   private readonly logger = new Logger(InstanceService.name);
+  private readonly githubApiToken: string | null;
+  private readonly pulumiStack: string;
 
   constructor(
     @InjectRepository(Instance)
     private readonly instanceRepo: Repository<Instance>,
-  ) {}
+    private readonly configService: ConfigService,
+  ) {
+    this.githubApiToken =
+      this.configService.get<string>("GITHUB_API_TOKEN") || null;
+    this.pulumiStack = this.configService.getOrThrow<string>("PULUMI_STACK");
+  }
 
   async findAll(): Promise<Instance[]> {
     return this.instanceRepo.find({ order: { name: "ASC" } });
@@ -67,7 +76,48 @@ export class InstanceService {
 
     const saved = await this.instanceRepo.save(instance);
     this.logger.log(`Instance "${saved.name}" created for ${saved.ownerEmail}`);
+
+    this.dispatchInstanceDeployment().catch((err) => {
+      Sentry.captureException(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+      );
+      this.logger.warn(`Failed to dispatch GitHub workflow: ${err.message}`);
+    });
+
     return saved;
+  }
+
+  private async dispatchInstanceDeployment(): Promise<void> {
+    if (!this.githubApiToken) {
+      this.logger.log("GITHUB_API_TOKEN not set, skipping workflow dispatch");
+      return;
+    }
+
+    // https://github.com/Aam-Digital/aam-cloud-infrastructure/blob/main/.github/workflows/pulumi-up-instances.yaml
+    const workflowFile = "pulumi-up-instances.yaml";
+    const response = await fetch(
+      `https://api.github.com/repos/Aam-Digital/aam-cloud-infrastructure/actions/workflows/${workflowFile}/dispatches`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.githubApiToken}`,
+          Accept: "application/vnd.github+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          // TODO: remove this parameter when
+          // https://github.com/Aam-Digital/aam-cloud-infrastructure/pull/136
+          // merged.
+          ref: "github-token-for-admin-services",
+          inputs: { stack: this.pulumiStack },
+        }),
+      },
+    );
+
+    if (!response.ok) {
+      const body = await response.text();
+      throw new Error(`GitHub API responded with ${response.status}: ${body}`);
+    }
   }
 
   async checkAvailability(name: string): Promise<AvailabilityCheckDto> {

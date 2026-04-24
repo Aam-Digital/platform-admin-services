@@ -1,4 +1,5 @@
 import { ConflictException } from "@nestjs/common";
+import { ConfigModule } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -11,6 +12,12 @@ describe("InstanceService", () => {
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        ConfigModule.forRoot({
+          ignoreEnvFile: true,
+          load: [() => ({ GITHUB_API_TOKEN: "test-token", PULUMI_STACK: "test" })],
+        }),
+      ],
       providers: [
         InstanceService,
         {

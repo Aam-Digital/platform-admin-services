@@ -15,14 +15,7 @@ For API specs refer to the OpenAPI docs (generated at runtime) available at `/ap
 
 ### Configuration
 
-The following environment variables should be set:
-
-- **Database**: `POSTGRES_HOST`, `POSTGRES_PORT`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`
-- **Auth**:
-  - `JWT_SECRET`
-  - `ADMIN_PASSWORD` (static password for access with Basic Auth user "admin")
-- **Sentry**: `SENTRY_DSN`, `SENTRY_ENVIRONMENT`
-- **Brevo Webhook**: `BREVO_WEBHOOK_TOKEN`, `BREVO_ALLOWED_IPS`
+See `.env.example` for environment variables.
 
 ---
 

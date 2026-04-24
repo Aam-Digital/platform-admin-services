@@ -62,6 +62,8 @@ describe("Instances (e2e)", () => {
               BREVO_ALLOWED_IPS: "",
               GITHUB_OIDC_AUDIENCE: "test",
               GITHUB_REPOSITORY: "test/test",
+              GITHUB_API_TOKEN: "test-gh-token",
+              PULUMI_STACK: "test",
             }),
           ],
         }),
@@ -120,6 +122,37 @@ describe("Instances (e2e)", () => {
   // ────────────────────────────────────────────────────────────────────
 
   describe("POST /api/v1/instances", () => {
+    beforeEach(() => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true });
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it("should dispatch the GitHub workflow on instance creation", async () => {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name: "dispatch-org", ownerEmail: "dispatch@example.com" })
+        .expect(201);
+
+      await new Promise(setImmediate);
+
+      expect(fetch).toHaveBeenCalledWith(
+        "https://api.github.com/repos/Aam-Digital/aam-cloud-infrastructure/actions/workflows/pulumi-up-instances.yaml/dispatches",
+        expect.objectContaining({
+          method: "POST",
+          headers: expect.objectContaining({
+            Authorization: "Bearer test-gh-token",
+          }),
+          body: JSON.stringify({
+            ref: "github-token-for-admin-services",
+            inputs: { stack: "test" },
+          }),
+        }),
+      );
+    });
+
     it("should create a new instance", () => {
       return request(app.getHttpServer())
         .post("/api/v1/instances")
