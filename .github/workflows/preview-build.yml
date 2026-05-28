@@ -12,4 +12,5 @@ jobs:
     with:
       docker_tags: |
         type=raw,value=preview
-    secrets: inherit
+    secrets:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
