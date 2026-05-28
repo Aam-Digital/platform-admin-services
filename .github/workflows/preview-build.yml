@@ -12,8 +12,8 @@ jobs:
     with:
       docker_tags: |
         type=raw,value=preview
-    secrets:
-      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     permissions:
       contents: read
       packages: write
+    secrets:
+      github-token: ${{ secrets.GITHUB_TOKEN }}
