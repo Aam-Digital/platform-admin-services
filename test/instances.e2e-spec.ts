@@ -74,7 +74,11 @@ describe("Instances (e2e)", () => {
         InstanceModule,
       ],
     })
-      .overrideGuard(await import("../src/auth/jwt-or-basic-auth.guard").then((m) => m.JwtOrBasicAuthGuard))
+      .overrideGuard(
+        await import("../src/auth/jwt-or-basic-auth.guard").then(
+          (m) => m.JwtOrBasicAuthGuard,
+        ),
+      )
       .useClass(MockJwtAuthGuard)
       .overrideGuard(
         await import("../src/instance/guards/brevo-webhook.guard").then(
@@ -179,7 +183,11 @@ describe("Instances (e2e)", () => {
     it("should accept an optional locale", () => {
       return request(app.getHttpServer())
         .post("/api/v1/instances")
-        .send({ name: "german-org", ownerEmail: "de@example.com", locale: "de-DE" })
+        .send({
+          name: "german-org",
+          ownerEmail: "de@example.com",
+          locale: "de-DE",
+        })
         .expect(201)
         .expect((res) => {
           expect(res.body.locale).toBe("de-DE");

@@ -1,16 +1,19 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import { Type } from "class-transformer";
 import {
-    IsEmail,
-    IsInt,
-    IsObject,
-    IsOptional,
-    IsString,
-    ValidateNested,
+  IsEmail,
+  IsInt,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
 } from "class-validator";
 
 export class BrevoWebhookAttributes {
-  @ApiProperty({ description: "Instance name to create.", example: "test-mon16" })
+  @ApiProperty({
+    description: "Instance name to create.",
+    example: "test-mon16",
+  })
   @IsString()
   AAM_SYSTEM: string;
 
