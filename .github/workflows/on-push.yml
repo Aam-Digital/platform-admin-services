@@ -25,8 +25,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Lint
-        run: npm run lint
+      - run: npx prettier --check .
+      - run: npx eslint . --max-warnings=0
 
       - name: Run unit tests with coverage
         run: npm run test:cov

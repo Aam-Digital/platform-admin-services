@@ -1,7 +1,7 @@
 // @ts-check
-const eslint = require('@eslint/js');
-const tseslint = require('typescript-eslint');
-const prettierConfig = require('eslint-config-prettier');
+const eslint = require("@eslint/js");
+const tseslint = require("typescript-eslint");
+const prettierConfig = require("eslint-config-prettier");
 
 module.exports = tseslint.config(
   eslint.configs.recommended,
@@ -10,25 +10,25 @@ module.exports = tseslint.config(
   {
     languageOptions: {
       parserOptions: {
-        project: './tsconfig.json',
+        project: "./tsconfig.json",
         tsconfigRootDir: __dirname,
-        sourceType: 'module',
+        sourceType: "module",
       },
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': [
-        'warn',
-        { argsIgnorePattern: '^_' },
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        { argsIgnorePattern: "^_" },
       ],
-      '@typescript-eslint/no-explicit-any': 'off',
+      "@typescript-eslint/no-explicit-any": "off",
       quotes: [
-        'error',
-        'double',
+        "error",
+        "double",
         { avoidEscape: true, allowTemplateLiterals: true },
       ],
     },
   },
   {
-    ignores: ['dist/', 'node_modules/', 'coverage/'],
+    ignores: ["dist/", "node_modules/", "coverage/", "eslint.config.js"],
   },
 );
