@@ -4,7 +4,7 @@ This file provides guidance to coding agents when working with code in this repo
 
 ## Functionality
 
-Admin backend for Aam Digital's SaaS platform. Tracks and provisions customer instances (each mapped to a subdomain like `my-org.aam-digital.com`). On instance creation, triggers the `pulumi-up-instances` workflow in `Aam-Digital/aam-cloud-infrastructure` via GitHub workflow dispatch, passing the stack name from `PULUMI_STACK`.
+Admin backend for Aam Digital's SaaS platform. Tracks and provisions customer instances (each mapped to a subdomain like `my-org.aam-digital.app`). On instance creation, triggers the `pulumi-up-instances` workflow in `Aam-Digital/aam-cloud-infrastructure` via GitHub workflow dispatch, passing the stack name from `PULUMI_STACK`.
 ## Architecture
 
 NestJS REST API managing lifecycle of Aam Digital SaaS instances. PostgreSQL via TypeORM. Deployed via semantic-release on push to main.
