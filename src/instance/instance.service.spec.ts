@@ -15,7 +15,9 @@ describe("InstanceService", () => {
       imports: [
         ConfigModule.forRoot({
           ignoreEnvFile: true,
-          load: [() => ({ GITHUB_API_TOKEN: "test-token", PULUMI_STACK: "test" })],
+          load: [
+            () => ({ GITHUB_API_TOKEN: "test-token", PULUMI_STACK: "test" }),
+          ],
         }),
       ],
       providers: [
