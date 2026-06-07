@@ -82,7 +82,11 @@ describe("InstanceService", () => {
     it("should return available for a valid, unused name", async () => {
       repo.findOneBy.mockResolvedValue(null);
       const result = await service.checkAvailability("good-name");
-      expect(result).toEqual({ name: "good-name", available: true, reason: null });
+      expect(result).toEqual({
+        name: "good-name",
+        available: true,
+        reason: null,
+      });
     });
 
     it("should return invalid for a bad pattern", async () => {

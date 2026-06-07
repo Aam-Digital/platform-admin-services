@@ -1,9 +1,9 @@
 import {
-    CanActivate,
-    ExecutionContext,
-    Injectable,
-    Logger,
-    UnauthorizedException,
+  CanActivate,
+  ExecutionContext,
+  Injectable,
+  Logger,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { Request } from "express";
@@ -42,9 +42,7 @@ export class BrevoWebhookGuard implements CanActivate {
     if (this.allowedCidrs.length > 0) {
       const clientIp = this.extractClientIp(req);
       if (!this.isIpAllowed(clientIp)) {
-        this.logger.warn(
-          `Brevo webhook: rejected request from IP ${clientIp}`,
-        );
+        this.logger.warn(`Brevo webhook: rejected request from IP ${clientIp}`);
         throw new UnauthorizedException(
           "Request from non-whitelisted IP address.",
         );
@@ -82,8 +80,10 @@ export class BrevoWebhookGuard implements CanActivate {
   }
 
   private ipToInt(ip: string): number {
-    return ip
-      .split(".")
-      .reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0;
+    return (
+      ip
+        .split(".")
+        .reduce((acc, octet) => (acc << 8) + parseInt(octet, 10), 0) >>> 0
+    );
   }
 }
