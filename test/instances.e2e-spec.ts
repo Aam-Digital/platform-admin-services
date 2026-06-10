@@ -150,6 +150,7 @@ describe("Instances (e2e)", () => {
             Authorization: "Bearer test-gh-token",
           }),
           body: JSON.stringify({
+            ref: "main",
             inputs: { stack: "test" },
           }),
         }),
