@@ -105,6 +105,7 @@ export class InstanceService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          ref: "main",
           inputs: { stack: this.infraStack },
         }),
       },
