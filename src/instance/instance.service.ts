@@ -33,7 +33,7 @@ const RESERVED_NAMES = new Set([
 export class InstanceService {
   private readonly logger = new Logger(InstanceService.name);
   private readonly githubApiToken: string | null;
-  private readonly pulumiStack: string;
+  private readonly infraStack: string;
 
   constructor(
     @InjectRepository(Instance)
@@ -42,7 +42,7 @@ export class InstanceService {
   ) {
     this.githubApiToken =
       this.configService.get<string>("GITHUB_API_TOKEN") || null;
-    this.pulumiStack = this.configService.getOrThrow<string>("PULUMI_STACK");
+    this.infraStack = this.configService.getOrThrow<string>("INFRA_STACK");
   }
 
   async findAll(): Promise<Instance[]> {
@@ -109,7 +109,7 @@ export class InstanceService {
           // https://github.com/Aam-Digital/aam-cloud-infrastructure/pull/136
           // merged.
           ref: "github-token-for-admin-services",
-          inputs: { stack: this.pulumiStack },
+          inputs: { stack: this.infraStack },
         }),
       },
     );

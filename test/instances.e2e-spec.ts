@@ -63,7 +63,7 @@ describe("Instances (e2e)", () => {
               GITHUB_OIDC_AUDIENCE: "test",
               GITHUB_REPOSITORY: "test/test",
               GITHUB_API_TOKEN: "test-gh-token",
-              PULUMI_STACK: "test",
+              INFRA_STACK: "test",
             }),
           ],
         }),
