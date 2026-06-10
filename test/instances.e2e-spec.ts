@@ -150,7 +150,6 @@ describe("Instances (e2e)", () => {
             Authorization: "Bearer test-gh-token",
           }),
           body: JSON.stringify({
-            ref: "github-token-for-admin-services",
             inputs: { stack: "test" },
           }),
         }),
