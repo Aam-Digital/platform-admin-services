@@ -105,10 +105,6 @@ export class InstanceService {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          // TODO: remove this parameter when
-          // https://github.com/Aam-Digital/aam-cloud-infrastructure/pull/136
-          // merged.
-          ref: "github-token-for-admin-services",
           inputs: { stack: this.infraStack },
         }),
       },
