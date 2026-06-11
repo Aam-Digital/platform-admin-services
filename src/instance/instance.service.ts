@@ -143,12 +143,12 @@ export class InstanceService implements OnModuleInit {
         inputs: { stack: this.infraStack },
       });
     } catch (e) {
-      throw new Error("Failed to trigger workflow in `pulumi-up-instances", {
+      throw new Error("Failed to trigger workflow \"pulumi-up-instances.yaml\"", {
         cause: e,
       });
     }
 
-    this.logger.log("Triggered pulumi-up workflow");
+    this.logger.log("Triggered pulumi-up-instances workflow");
   }
 
   async checkAvailability(name: string): Promise<AvailabilityCheckDto> {
