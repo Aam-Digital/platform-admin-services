@@ -143,7 +143,7 @@ export class InstanceService implements OnModuleInit {
         inputs: { stack: this.infraStack },
       });
     } catch (e) {
-      throw new Error("Failed to trigger workflow \"pulumi-up-instances.yaml\"", {
+      throw new Error('Failed to trigger workflow "pulumi-up-instances.yaml"', {
         cause: e,
       });
     }
