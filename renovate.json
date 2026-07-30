@@ -5,6 +5,7 @@
         "group:allNonMajor"
     ],
     "timezone": "Europe/Berlin",
+    "dependencyDashboard": false,
     "minimumReleaseAge": "2 days",
     "schedule": [
         "* 0-4 * * 4"
