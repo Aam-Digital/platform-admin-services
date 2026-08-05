@@ -31,6 +31,8 @@
     "@nestjs/swagger": "^11.4.5",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.3",
+    "@octokit/auth-app": "^8.2.0",
+    "@octokit/rest": "^22.0.1",
     "@sentry/nestjs": "^10.69.0",
     "@sentry/profiling-node": "^10.69.0",
     "class-transformer": "^0.5.1",
@@ -80,6 +82,9 @@
     "transform": {
       "^.+\\.(t|j)s$": "ts-jest"
     },
+    "transformIgnorePatterns": [
+      "node_modules/(?!@octokit|before-after-hook|universal-user-agent|universal-github-app-jwt|is-plain-object|deprecation)"
+    ],
     "collectCoverageFrom": [
       "**/*.(t|j)s"
     ],

@@ -1,7 +1,10 @@
+jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() }));
+
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { Octokit } from "@octokit/rest";
 import request from "supertest";
 import { Instance } from "../src/instance/instance.entity";
 import { InstanceModule } from "../src/instance/instance.module";
@@ -49,8 +52,25 @@ const VALID_BREVO_PAYLOAD = {
 
 describe("Instances (e2e)", () => {
   let app: INestApplication;
+  let mockDispatch: jest.Mock;
 
   beforeAll(async () => {
+    mockDispatch = jest.fn().mockResolvedValue({});
+
+    jest.mocked(Octokit).mockImplementation(
+      () =>
+        ({
+          rest: {
+            apps: {
+              getRepoInstallation: jest
+                .fn()
+                .mockResolvedValue({ data: { id: 123 } }),
+            },
+            actions: { createWorkflowDispatch: mockDispatch },
+          },
+        }) as unknown as Octokit,
+    );
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
         ConfigModule.forRoot({
@@ -62,7 +82,8 @@ describe("Instances (e2e)", () => {
               BREVO_ALLOWED_IPS: "",
               GITHUB_OIDC_AUDIENCE: "test",
               GITHUB_REPOSITORY: "test/test",
-              GITHUB_API_TOKEN: "test-gh-token",
+              GITHUB_APP_ID: "123",
+              GITHUB_APP_PRIVATE_KEY: "fake-key",
               INFRA_STACK: "test",
             }),
           ],
@@ -126,12 +147,8 @@ describe("Instances (e2e)", () => {
   // ────────────────────────────────────────────────────────────────────
 
   describe("POST /api/v1/instances", () => {
-    beforeEach(() => {
-      jest.spyOn(global, "fetch").mockResolvedValue({ ok: true } as Response);
-    });
-
     afterEach(() => {
-      jest.restoreAllMocks();
+      mockDispatch.mockClear();
     });
 
     it("should dispatch the GitHub workflow on instance creation", async () => {
@@ -142,19 +159,13 @@ describe("Instances (e2e)", () => {
 
       await new Promise(setImmediate);
 
-      expect(fetch).toHaveBeenCalledWith(
-        "https://api.github.com/repos/Aam-Digital/aam-cloud-infrastructure/actions/workflows/pulumi-up-instances.yaml/dispatches",
-        expect.objectContaining({
-          method: "POST",
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-gh-token",
-          }),
-          body: JSON.stringify({
-            ref: "main",
-            inputs: { stack: "test" },
-          }),
-        }),
-      );
+      expect(mockDispatch).toHaveBeenCalledWith({
+        owner: "Aam-Digital",
+        repo: "aam-cloud-infrastructure",
+        workflow_id: "pulumi-up-instances.yaml",
+        ref: "main",
+        inputs: { stack: "test" },
+      });
     });
 
     it("should create a new instance", () => {

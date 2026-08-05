@@ -4,10 +4,13 @@ import {
   ConflictException,
   Injectable,
   Logger,
+  OnModuleInit,
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
+import { Octokit } from "@octokit/rest";
+import { createAppAuth } from "@octokit/auth-app";
 import { AvailabilityCheckDto, CreateInstanceDto } from "./dto";
 import { INSTANCE_NAME_PATTERN } from "./dto/create-instance.dto";
 import { Instance } from "./instance.entity";
@@ -29,20 +32,58 @@ const RESERVED_NAMES = new Set([
   "status",
 ]);
 
+const GITHUB_ORG_NAME = "Aam-Digital";
+const GITHUB_INFRA_REPO = "aam-cloud-infrastructure";
+
 @Injectable()
-export class InstanceService {
+export class InstanceService implements OnModuleInit {
   private readonly logger = new Logger(InstanceService.name);
-  private readonly githubApiToken: string | null;
   private readonly infraStack: string;
+  private octokit: Octokit | null = null;
 
   constructor(
     @InjectRepository(Instance)
     private readonly instanceRepo: Repository<Instance>,
     private readonly configService: ConfigService,
   ) {
-    this.githubApiToken =
-      this.configService.get<string>("GITHUB_API_TOKEN") || null;
     this.infraStack = this.configService.getOrThrow<string>("INFRA_STACK");
+  }
+
+  async onModuleInit(): Promise<void> {
+    const appId = this.configService.get<string>("GITHUB_APP_ID");
+    const privateKey = this.configService.get<string>("GITHUB_APP_PRIVATE_KEY");
+
+    if (!appId || !privateKey) {
+      if (this.configService.get<string>("NODE_ENV") !== "development") {
+        throw new Error(
+          "GITHUB_APP_ID and GITHUB_APP_PRIVATE_KEY are required in non-development environments",
+        );
+      }
+      this.logger.warn(
+        "GitHub App not configured — workflow dispatch disabled",
+      );
+      return;
+    }
+
+    const appOctokit = new Octokit({
+      authStrategy: createAppAuth,
+      auth: { appId, privateKey: privateKey.replace(/\\n/g, "\n") },
+    });
+
+    const { data: installation } =
+      await appOctokit.rest.apps.getRepoInstallation({
+        owner: GITHUB_ORG_NAME,
+        repo: GITHUB_INFRA_REPO,
+      });
+
+    this.octokit = new Octokit({
+      authStrategy: createAppAuth,
+      auth: {
+        appId,
+        privateKey: privateKey.replace(/\\n/g, "\n"),
+        installationId: installation.id,
+      },
+    });
   }
 
   async findAll(): Promise<Instance[]> {
@@ -88,33 +129,26 @@ export class InstanceService {
   }
 
   private async dispatchInstanceDeployment(): Promise<void> {
-    if (!this.githubApiToken) {
-      this.logger.log("GITHUB_API_TOKEN not set, skipping workflow dispatch");
+    if (!this.octokit) {
+      this.logger.log("Workflow trigger skipped (GitHub App not configured)");
       return;
     }
 
-    // https://github.com/Aam-Digital/aam-cloud-infrastructure/blob/main/.github/workflows/pulumi-up-instances.yaml
-    const workflowFile = "pulumi-up-instances.yaml";
-    const response = await fetch(
-      `https://api.github.com/repos/Aam-Digital/aam-cloud-infrastructure/actions/workflows/${workflowFile}/dispatches`,
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.githubApiToken}`,
-          Accept: "application/vnd.github+json",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          ref: "main",
-          inputs: { stack: this.infraStack },
-        }),
-      },
-    );
-
-    if (!response.ok) {
-      const body = await response.text();
-      throw new Error(`GitHub API responded with ${response.status}: ${body}`);
+    try {
+      await this.octokit.rest.actions.createWorkflowDispatch({
+        owner: GITHUB_ORG_NAME,
+        repo: GITHUB_INFRA_REPO,
+        workflow_id: "pulumi-up-instances.yaml",
+        ref: "main",
+        inputs: { stack: this.infraStack },
+      });
+    } catch (e) {
+      throw new Error('Failed to trigger workflow "pulumi-up-instances.yaml"', {
+        cause: e,
+      });
     }
+
+    this.logger.log("Triggered pulumi-up-instances workflow");
   }
 
   async checkAvailability(name: string): Promise<AvailabilityCheckDto> {
