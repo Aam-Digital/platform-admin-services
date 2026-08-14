@@ -42,7 +42,9 @@ export class BrevoWebhookGuard implements CanActivate {
     if (this.allowedCidrs.length > 0) {
       const clientIp = this.extractClientIp(req);
       if (!this.isIpAllowed(clientIp)) {
-        this.logger.warn(`Brevo webhook: rejected request from IP ${clientIp}`);
+        this.logger.warn("Brevo webhook: rejected request from IP", {
+          clientIp,
+        });
         throw new UnauthorizedException(
           "Request from non-whitelisted IP address.",
         );
