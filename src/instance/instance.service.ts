@@ -117,7 +117,6 @@ export class InstanceService implements OnModuleInit {
     const saved = await this.instanceRepo.save(instance);
     this.logger.log("Instance created", {
       name: saved.name,
-      ownerEmail: saved.ownerEmail,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {
