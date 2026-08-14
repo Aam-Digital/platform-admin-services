@@ -6,7 +6,8 @@
         ":maintainLockFilesMonthly"
     ],
     "enabledManagers": [
-        "npm"
+        "npm",
+        "dockerfile"
     ],
     "timezone": "Etc/UTC",
     "schedule": [
@@ -19,7 +20,8 @@
         "dependencies"
     ],
     "reviewers": [
-        "sleidig"
+        "sleidig",
+        "Abhinegi2"
     ],
     "rangeStrategy": "bump",
     "constraints": {
@@ -51,6 +53,17 @@
                 "patch"
             ],
             "groupName": "weekly-non-major-updates",
+            "automerge": false
+        },
+        {
+            "matchManagers": [
+                "dockerfile"
+            ],
+            "matchUpdateTypes": [
+                "minor",
+                "patch"
+            ],
+            "groupName": "docker-base-image",
             "automerge": false
         }
     ]
