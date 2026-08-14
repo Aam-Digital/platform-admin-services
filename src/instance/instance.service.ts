@@ -1,4 +1,3 @@
-import * as Sentry from "@sentry/nestjs";
 import {
   BadRequestException,
   ConflictException,
@@ -116,13 +115,18 @@ export class InstanceService implements OnModuleInit {
     });
 
     const saved = await this.instanceRepo.save(instance);
-    this.logger.log(`Instance "${saved.name}" created for ${saved.ownerEmail}`);
+    this.logger.log("Instance created", {
+      name: saved.name,
+    });
 
-    this.dispatchInstanceDeployment().catch((err) => {
-      Sentry.captureException(
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      // pass the wrapping Error (not `err`) as the message, so Sentry groups
+      // on the constant text rather than on the varying cause; `cause` is
+      // still reported through Sentry's linked-errors handling.
+      this.logger.error(
         new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
       );
-      this.logger.warn(`Failed to dispatch GitHub workflow: ${err.message}`);
     });
 
     return saved;

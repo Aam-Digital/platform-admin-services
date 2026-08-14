@@ -4,9 +4,14 @@ import { ValidationPipe } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { DocumentBuilder, SwaggerModule } from "@nestjs/swagger";
 import { AppModule } from "./app.module";
+import { SentryLogger } from "./common/sentry-logger.service";
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  // SentryLogger mirrors `warn` and `error` logs to Sentry, which the
+  // built-in logger does not do (it bypasses the global `console`).
+  const app = await NestFactory.create(AppModule, {
+    logger: new SentryLogger(),
+  });
   app.enableCors();
 
   // Trust proxy headers (for IP extraction behind reverse proxy)
