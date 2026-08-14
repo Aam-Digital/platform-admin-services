@@ -17,6 +17,34 @@ For API specs refer to the OpenAPI docs (generated at runtime) available at `/ap
 
 See `.env.example` for environment variables.
 
+### GitHub App Setup
+
+The service authenticates with GitHub as a GitHub App to dispatch workflow runs of
+[`pulumi-up-instances`][] on `Aam-Digital/aam-cloud-infrastructure`.
+
+**Create the App** in the `Aam-Digital` org:
+
+1. Go to **Org Settings → Developer settings → GitHub Apps → New GitHub App**
+2. Set a name (e.g. `aam-platform-admin`) and the homepage URL
+   <https://github.com/Aam-Digital/platform-admin-services>
+3. Uncheck **Active** under Webhooks (not needed)
+4. Under **Repository permissions**, set **Actions: Read and write**
+5. Set **Where can this app be installed** to "Only on this account"
+6. Click **Create GitHub App**
+
+**Install the App** on the target repository:
+
+1. In the App settings, click **Install App**
+2. Install on the `Aam-Digital` org, restrict access to the `aam-cloud-infrastructure` repository
+
+**Configure the service** (see [`.env.example`](.env.example) for all variables):
+
+- `GITHUB_APP_ID`: numeric App ID from the [`aam-platform-admin` settings page](https://github.com/organizations/Aam-Digital/settings/apps/aam-platform-admin)
+- `GITHUB_APP_PRIVATE_KEY`: generate a private key on that page and set it to the `.pem` contents
+
+[pulumi-up-instances]: https://github.com/Aam-Digital/aam-cloud-infrastructure/blob/main/.github/workflows/pulumi-up-instances.yaml
+
+
 ---
 
 ## Development
