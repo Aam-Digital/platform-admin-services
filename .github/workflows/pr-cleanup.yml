@@ -1,0 +1,35 @@
+name: On PR Closed (cleanup pre-release image)
+
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  cleanup:
+    name: Delete pr-<number> package version
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete GHCR image tagged pr-${{ github.event.number }}
+        env:
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="pr-${{ github.event.number }}"
+          OWNER="${{ github.repository_owner }}"
+          PACKAGE="${{ github.event.repository.name }}"
+
+          version_ids=$(gh api "/orgs/$OWNER/packages/container/$PACKAGE/versions" --paginate \
+            --jq ".[] | select(.metadata.container.tags | index(\"$TAG\")) | .id")
+
+          if [ -z "$version_ids" ]; then
+            echo "No package version tagged $TAG found, nothing to delete"
+            exit 0
+          fi
+
+          for id in $version_ids; do
+            echo "Deleting package version $id (tag $TAG)"
+            gh api --method DELETE "/orgs/$OWNER/packages/container/$PACKAGE/versions/$id"
+          done
