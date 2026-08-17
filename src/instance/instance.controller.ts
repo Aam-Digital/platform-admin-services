@@ -106,6 +106,9 @@ export class InstanceController {
     @Body() dto: BrevoWebhookDto,
     @Query("token") _token: string,
   ): Promise<InstanceResponseDto> {
+    // Built field by field on purpose: a hostname becomes an Ingress host in
+    // the cluster, so it is set by an admin through `POST /instances` only and
+    // must never be reachable from the webhook, whatever Brevo sends.
     const createDto: CreateInstanceDto = {
       name: dto.attributes.AAM_SYSTEM,
       ownerEmail: dto.email,
