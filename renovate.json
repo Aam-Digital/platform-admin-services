@@ -7,11 +7,13 @@
     ],
     "enabledManagers": [
         "npm",
-        "dockerfile"
+        "dockerfile",
+        "docker-compose",
+        "github-actions"
     ],
     "timezone": "Etc/UTC",
     "schedule": [
-        "after 00:00 and before 09:00 on Monday"
+        "* * * * 1"
     ],
     "dependencyDashboard": false,
     "prConcurrentLimit": 5,
@@ -19,6 +21,17 @@
     "labels": [
         "dependencies"
     ],
+    "vulnerabilityAlerts": {
+        "enabled": true,
+        "schedule": [
+            "at any time"
+        ],
+        "labels": [
+            "dependencies",
+            "security"
+        ]
+    },
+    "osvVulnerabilityAlerts": true,
     "reviewers": [
         "sleidig",
         "Abhinegi2"
@@ -57,13 +70,25 @@
         },
         {
             "matchManagers": [
-                "dockerfile"
+                "dockerfile",
+                "docker-compose"
             ],
             "matchUpdateTypes": [
                 "minor",
                 "patch"
             ],
             "groupName": "docker-base-image",
+            "automerge": false
+        },
+        {
+            "matchManagers": [
+                "github-actions"
+            ],
+            "matchUpdateTypes": [
+                "minor",
+                "patch"
+            ],
+            "groupName": "github-actions",
             "automerge": false
         }
     ]
