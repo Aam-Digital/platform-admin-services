@@ -34,6 +34,8 @@ describe("InstanceService", () => {
             create: jest.fn(),
             save: jest.fn(),
             remove: jest.fn(),
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
+            delete: jest.fn().mockResolvedValue({ affected: 1 }),
           },
         },
       ],
@@ -86,8 +88,10 @@ describe("InstanceService", () => {
       ({ name: "some-org", status: "inactive" }) as Instance;
 
     it("should hibernate a confirmed instance", async () => {
-      repo.findOneBy.mockResolvedValue(active());
-      repo.save.mockImplementation((i) => Promise.resolve(i as Instance));
+      repo.findOneBy.mockResolvedValueOnce(active()).mockResolvedValue({
+        name: "some-org",
+        status: "inactive",
+      } as Instance);
 
       const result = await service.setStatus(
         "some-org",
@@ -97,9 +101,24 @@ describe("InstanceService", () => {
       );
 
       expect(result.status).toBe("inactive");
-      expect(repo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ name: "some-org", status: "inactive" }),
+      // guarded by the status that was read, so a concurrent change loses
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "some-org", status: "active" },
+        { status: "inactive" },
       );
+    });
+
+    it("should report a conflict when the status changed under the request", async () => {
+      repo.findOneBy.mockResolvedValue(active());
+      repo.update.mockResolvedValue({
+        affected: 0,
+        raw: {},
+        generatedMaps: [],
+      });
+
+      await expect(
+        service.setStatus("some-org", "inactive", "some-org", "1.2.3.4"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("should reject hibernating without a matching confirmation", async () => {
@@ -111,12 +130,14 @@ describe("InstanceService", () => {
       await expect(
         service.setStatus("some-org", "inactive", undefined, "1.2.3.4"),
       ).rejects.toThrow(BadRequestException);
-      expect(repo.save).not.toHaveBeenCalled();
+      expect(repo.update).not.toHaveBeenCalled();
     });
 
     it("should re-activate without a confirmation", async () => {
-      repo.findOneBy.mockResolvedValue(inactive());
-      repo.save.mockImplementation((i) => Promise.resolve(i as Instance));
+      repo.findOneBy.mockResolvedValueOnce(inactive()).mockResolvedValue({
+        name: "some-org",
+        status: "active",
+      } as Instance);
 
       const result = await service.setStatus(
         "some-org",
@@ -139,12 +160,30 @@ describe("InstanceService", () => {
 
   describe("remove", () => {
     it("should delete an inactive, confirmed instance", async () => {
-      const instance = { name: "some-org", status: "inactive" } as Instance;
-      repo.findOneBy.mockResolvedValue(instance);
+      repo.findOneBy.mockResolvedValue({
+        name: "some-org",
+        status: "inactive",
+      } as Instance);
 
       await service.remove("some-org", "some-org", "1.2.3.4");
 
-      expect(repo.remove).toHaveBeenCalledWith(instance);
+      // conditional on the instance still being inactive at delete time
+      expect(repo.delete).toHaveBeenCalledWith({
+        name: "some-org",
+        status: "inactive",
+      });
+    });
+
+    it("should report a conflict when it is re-activated under the request", async () => {
+      repo.findOneBy.mockResolvedValue({
+        name: "some-org",
+        status: "inactive",
+      } as Instance);
+      repo.delete.mockResolvedValue({ affected: 0, raw: {} });
+
+      await expect(
+        service.remove("some-org", "some-org", "1.2.3.4"),
+      ).rejects.toThrow(ConflictException);
     });
 
     it("should refuse to delete an active instance", async () => {
@@ -156,7 +195,7 @@ describe("InstanceService", () => {
       await expect(
         service.remove("some-org", "some-org", "1.2.3.4"),
       ).rejects.toThrow(ConflictException);
-      expect(repo.remove).not.toHaveBeenCalled();
+      expect(repo.delete).not.toHaveBeenCalled();
     });
 
     it("should reject a missing or mismatched confirmation", async () => {
@@ -171,7 +210,7 @@ describe("InstanceService", () => {
       await expect(
         service.remove("some-org", "other-org", "1.2.3.4"),
       ).rejects.toThrow(BadRequestException);
-      expect(repo.remove).not.toHaveBeenCalled();
+      expect(repo.delete).not.toHaveBeenCalled();
     });
 
     it("should throw NotFoundException for an unknown instance", async () => {

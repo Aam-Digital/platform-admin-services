@@ -36,6 +36,15 @@ const RESERVED_NAMES = new Set([
   "status",
 ]);
 
+/**
+ * Raised when a lifecycle write matches no row because the instance changed
+ * between being read and being written. Retrying is safe: the caller then
+ * decides against what the record now says.
+ */
+const RACE_MESSAGE = (name: string) =>
+  `Instance "${name}" was changed by another request while this one was in ` +
+  `flight. Read it again and repeat the request.`;
+
 const GITHUB_ORG_NAME = "Aam-Digital";
 const GITHUB_INFRA_REPO = "aam-cloud-infrastructure";
 
@@ -169,8 +178,18 @@ export class InstanceService implements OnModuleInit {
       return instance;
     }
 
-    instance.status = status;
-    const saved = await this.instanceRepo.save(instance);
+    // Conditional on the status that was read, rather than saving the entity
+    // back: between the read and the write another request may have changed it
+    // or deleted the row, and `save` would report success either way.
+    const updated = await this.instanceRepo.update(
+      { name, status: instance.status },
+      { status },
+    );
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
 
     // `warn` so that taking an instance down (and putting it back up) reaches
     // Sentry as an audit trail. The admin password is shared, so the client IP
@@ -220,7 +239,16 @@ export class InstanceService implements OnModuleInit {
       );
     }
 
-    await this.instanceRepo.remove(instance);
+    // Conditional on the instance still being inactive, so the check above
+    // holds at the moment of the delete and not merely when it was read — a
+    // concurrent re-activation must not slip an active instance past it.
+    const deleted = await this.instanceRepo.delete({
+      name,
+      status: "inactive",
+    });
+    if (deleted.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
 
     this.logger.warn("Instance deleted", { name, clientIp });
   }

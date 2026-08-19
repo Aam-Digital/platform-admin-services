@@ -29,6 +29,7 @@ NestJS REST API managing lifecycle of Aam Digital SaaS instances. PostgreSQL via
 - `inactive` means hibernated: namespace, Keycloak realm and database volume claim go away on the next deployment, the record and the name stay. The volume itself is retained by the cluster, but nothing restores an instance from it — re-activating provisions an empty one.
 - Deleting requires the instance to be `inactive` already, so the step that takes a system down is always the reversible one, and it is not the same request. Deleting triggers no deployment: an inactive instance is out of the manifest already.
 - Both destructive routes require `?confirm=<name>` repeating the path name. Valid credentials do not establish that the caller meant *this* instance.
+- Lifecycle writes are conditional on the status that was read (`update`/`delete` with a status predicate, checking `affected`), never `save`/`remove` on the loaded entity. A concurrent re-activation would otherwise slip an active instance past the "must be hibernated" check. A row lock would do too, but `better-sqlite3` in the e2e tests does not support one.
 
 **Conventions:**
 - Read required env vars via `configService.getOrThrow` in the constructor and store them as instance fields — fail at startup, not at runtime.
