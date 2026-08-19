@@ -13,6 +13,11 @@ its status, dispatches that deployment.
 The OpenAPI docs at `/api/docs` (Swagger UI, generated at runtime) document the
 endpoints, their authentication and the effect of each operation.
 
+`demo` and `preview` are reserved instance names, among others: both are the
+platform's own instances, defined in the [cluster deployment][infra] rather
+than through this API, and a collision fails the deployment for every
+instance, not just the one requested.
+
 ### Shutting an instance down
 
 Taking a system down means taking it out of the manifest, and the two ways to do

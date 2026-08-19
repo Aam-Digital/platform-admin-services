@@ -20,7 +20,16 @@ import { INSTANCE_NAME_PATTERN } from "./dto/create-instance.dto";
 import { Instance, InstanceStatus } from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 
-/** Names that must not be used as instance subdomains. */
+/**
+ * Names that must not be used as instance subdomains.
+ *
+ * `demo` and `preview` are the platform's own instances, defined in the
+ * infrastructure rather than here. Creating one under those names is accepted by
+ * neither side, but only this one reports it to whoever asked: the deployment
+ * refuses a manifest entry that collides with a platform instance by failing the
+ * apply, which takes every other instance's update with it.
+ * https://github.com/Aam-Digital/aam-cloud-infrastructure/blob/main/infra/aam-digital-instances/src/index.ts
+ */
 const RESERVED_NAMES = new Set([
   "www",
   "admin",
@@ -33,6 +42,7 @@ const RESERVED_NAMES = new Set([
   "dev",
   "staging",
   "demo",
+  "preview",
   "test",
   "status",
 ]);

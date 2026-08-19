@@ -486,6 +486,19 @@ describe("InstanceService", () => {
         }),
       ).rejects.toThrow(ConflictException);
     });
+
+    // The platform's own instances. Without this the API accepts the name and
+    // the deployment then fails the apply for every instance, not just this one.
+    it.each(["demo", "preview"])(
+      "should reject the platform instance name %s",
+      async (name) => {
+        repo.findOneBy.mockResolvedValue(null);
+
+        await expect(
+          service.create({ name, ownerEmail: "a@b.com" }),
+        ).rejects.toThrow(ConflictException);
+      },
+    );
   });
 
   describe("checkAvailability", () => {
