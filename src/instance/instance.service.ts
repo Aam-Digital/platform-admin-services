@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { QueryDeepPartialEntity, Repository } from "typeorm";
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import {
@@ -18,6 +18,7 @@ import {
 } from "./dto";
 import { INSTANCE_NAME_PATTERN } from "./dto/create-instance.dto";
 import { Instance, InstanceStatus } from "./instance.entity";
+import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 
 /** Names that must not be used as instance subdomains. */
 const RESERVED_NAMES = new Set([
@@ -138,6 +139,11 @@ export class InstanceService implements OnModuleInit {
       ownerEmail: dto.ownerEmail,
       locale: dto.locale ?? "en-US",
       alternativeHostnames,
+      mode: dto.mode ?? "standard",
+      // Deliberately not settable when creating: this route also accepts a
+      // user token and the Brevo webhook, and an override reaches the app
+      // unvalidated. It is set through the admin-only route below.
+      appConfigOverride: null,
     });
 
     const saved = await this.instanceRepo.save(instance);
@@ -201,6 +207,84 @@ export class InstanceService implements OnModuleInit {
     this.logger.warn("Instance status changed", {
       name: saved.name,
       status: saved.status,
+      clientIp,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
+   * Changes an instance's app configuration: its mode, its raw `config.json`
+   * overrides, or both. A field absent from the DTO is left as it is.
+   *
+   * The overrides are stored as given. Which settings are valid, and which of
+   * them the deployment owns and refuses to let through, is decided where they
+   * are applied — this service has no way to tell a deliberate override from a
+   * typo.
+   *
+   * @param confirm must repeat `name`. Unconditionally, unlike
+   *   {@link setStatus}: whether a change here stops an instance persisting its
+   *   data can depend on the contents of an override this service does not
+   *   interpret, so there is no subset of calls that is safely exempt.
+   */
+  async updateAppConfig(
+    name: string,
+    dto: UpdateAppConfigDto,
+    confirm: string | undefined,
+    clientIp: string,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    // `!== undefined` rather than `in`, which would be true for a declared but
+    // absent field and turn every request into an unset of both.
+    const changes: Partial<Instance> = {};
+    if (dto.mode !== undefined) {
+      changes.mode = dto.mode;
+    }
+    if (dto.appConfigOverride !== undefined) {
+      changes.appConfigOverride = dto.appConfigOverride;
+    }
+    if (Object.keys(changes).length === 0) {
+      throw new BadRequestException(
+        'Nothing to change: pass "mode", "appConfigOverride", or both.',
+      );
+    }
+
+    // Conditional on the row still existing rather than on the values that were
+    // read: `save` reports success for a row deleted in between. Not conditional
+    // on the previous configuration — a lost update here means stale config,
+    // where the same conditional for the status guards against destruction.
+    const updated = await this.instanceRepo.update(
+      { name },
+      // `update` recurses into object-typed columns to allow partial updates of
+      // embedded entities, which the overrides are not: they are one opaque
+      // value that is replaced whole.
+      changes as QueryDeepPartialEntity<Instance>,
+    );
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    // `warn` for the same reason as a status change: the admin password is
+    // shared, so this and the client IP are the audit trail. Logged with the
+    // previous values, because a wrong setting here is silent — the instance
+    // stays up and merely behaves differently.
+    this.logger.warn("Instance app config changed", {
+      name: saved.name,
+      mode: saved.mode,
+      previousMode: instance.mode,
+      hasOverride: saved.appConfigOverride !== null,
+      hadOverride: instance.appConfigOverride !== null,
       clientIp,
     });
 
