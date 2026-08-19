@@ -315,6 +315,20 @@ describe("InstanceService", () => {
       );
     });
 
+    it("should not deploy for a mode that is already set", async () => {
+      repo.findOneBy.mockResolvedValue(existing);
+
+      const result = await service.updateAppConfig(
+        "my-org",
+        { mode: "standard" },
+        "my-org",
+        "1.2.3.4",
+      );
+
+      expect(result).toBe(existing);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
     it("should reject a body that changes nothing", async () => {
       repo.findOneBy.mockResolvedValue(existing);
 

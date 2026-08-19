@@ -245,17 +245,29 @@ export class InstanceService implements OnModuleInit {
 
     // `!== undefined` rather than `in`, which would be true for a declared but
     // absent field and turn every request into an unset of both.
-    const changes: Partial<Instance> = {};
-    if (dto.mode !== undefined) {
-      changes.mode = dto.mode;
-    }
-    if (dto.appConfigOverride !== undefined) {
-      changes.appConfigOverride = dto.appConfigOverride;
-    }
-    if (Object.keys(changes).length === 0) {
+    if (dto.mode === undefined && dto.appConfigOverride === undefined) {
       throw new BadRequestException(
         'Nothing to change: pass "mode", "appConfigOverride", or both.',
       );
+    }
+
+    const changes: Partial<Instance> = {};
+    if (dto.mode !== undefined && dto.mode !== instance.mode) {
+      changes.mode = dto.mode;
+    }
+    if (dto.appConfigOverride !== undefined) {
+      // Not compared against the stored value: an override is an arbitrarily
+      // nested object, and a deep comparison that is subtly wrong would drop a
+      // change. Re-sending an identical override therefore does deploy again.
+      changes.appConfigOverride = dto.appConfigOverride;
+    }
+
+    // No deployment for a request that asks for what is already stored — as
+    // with a status set to the one it already has. The dispatched workflow
+    // deploys every instance of the stack, so an idempotent-looking call is an
+    // expensive no-op.
+    if (Object.keys(changes).length === 0) {
+      return instance;
     }
 
     // Conditional on the row still existing rather than on the values that were

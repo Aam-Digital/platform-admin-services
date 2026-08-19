@@ -3,9 +3,10 @@ jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() }));
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { TypeOrmModule } from "@nestjs/typeorm";
+import { TypeOrmModule, getRepositoryToken } from "@nestjs/typeorm";
 import { Octokit } from "@octokit/rest";
 import request from "supertest";
+import { Repository } from "typeorm";
 import { Instance } from "../src/instance/instance.entity";
 import { InstanceModule } from "../src/instance/instance.module";
 
@@ -380,6 +381,45 @@ describe("Instances (e2e)", () => {
         .send({ email: "x@example.com", attributes: {} })
         .expect(400);
     });
+
+    it("should create a standard instance without overrides", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "brevo-plain@example.com",
+          attributes: { AAM_SYSTEM: "brevo-plain-org" },
+        })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.mode).toBe("standard");
+          expect(res.body.appConfigOverride).toBeNull();
+        });
+    });
+
+    // The webhook is authenticated by a shared token, the weakest of the create
+    // paths, so it must not be able to ask for a demo instance. Two things stop
+    // it, and this pins both: the controller builds the create DTO field by
+    // field, and — despite the index signature on `BrevoWebhookAttributes`, which
+    // has no effect on validation — an unknown attribute is rejected outright.
+    it("should reject an unknown attribute rather than pass it through", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "brevo-mode@example.com",
+          attributes: { AAM_SYSTEM: "brevo-mode-org", mode: "demo" },
+        })
+        .expect(400);
+    });
+
+    it("should reject any unknown attribute, not just a known field name", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "brevo-extra@example.com",
+          attributes: { AAM_SYSTEM: "brevo-extra-org", FIRSTNAME: "Ada" },
+        })
+        .expect(400);
+    });
   });
 
   // ────────────────────────────────────────────────────────────────────
@@ -736,6 +776,44 @@ describe("Instances (e2e)", () => {
         .patch("/api/v1/instances/no-such-org/app-config?confirm=no-such-org")
         .send({ mode: "demo" })
         .expect(404);
+    });
+
+    it("should not deploy for a mode that is already set", async () => {
+      await createInstance("noop-org");
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/noop-org/app-config?confirm=noop-org")
+        .send({ mode: "standard" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.mode).toBe("standard");
+        });
+
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    // What a value corrupted outside this API does. `simple-json` is text with a
+    // `JSON.parse` on read, so it fails while the entity is hydrated, and it
+    // fails for the whole response rather than for the one row: a single bad
+    // value takes the manifest down for every instance. That direction is the
+    // safe one for the deployment — it cannot fetch the manifest, so it destroys
+    // nothing — but it is not contained, so it is worth knowing it behaves this
+    // way rather than skipping the row.
+    it("should fail the whole manifest on an unparseable stored override", async () => {
+      await createInstance("corrupt-org");
+      const repo = app.get<Repository<Instance>>(getRepositoryToken(Instance));
+      await repo.query(
+        `UPDATE instances SET app_config_override = 'not json' WHERE name = 'corrupt-org'`,
+      );
+
+      await request(app.getHttpServer()).get("/api/v1/instances").expect(500);
+
+      // and recovers once the value is valid again
+      await repo.query(
+        `UPDATE instances SET app_config_override = NULL WHERE name = 'corrupt-org'`,
+      );
+      await request(app.getHttpServer()).get("/api/v1/instances").expect(200);
     });
   });
 
