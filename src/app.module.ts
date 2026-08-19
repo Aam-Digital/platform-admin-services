@@ -7,6 +7,7 @@ import { SentryModule } from "@sentry/nestjs/setup";
 import { AuthModule } from "./auth/auth.module";
 import { Instance } from "./instance/instance.entity";
 import { InstanceModule } from "./instance/instance.module";
+import { AddInstanceStatus1787097600000 } from "./migrations/1787097600000-AddInstanceStatus";
 import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateInstances";
 
 @Module({
@@ -27,7 +28,10 @@ import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateI
         password: config.get<string>("POSTGRES_PASSWORD", "aam_admin_secret"),
         database: config.get<string>("POSTGRES_DB", "aam_admin"),
         entities: [Instance],
-        migrations: [CreateInstances1745400000000],
+        migrations: [
+          CreateInstances1745400000000,
+          AddInstanceStatus1787097600000,
+        ],
         migrationsRun: config.get<string>("NODE_ENV") === "production",
         synchronize: config.get<string>("NODE_ENV") !== "production",
         logging: config.get<string>("NODE_ENV") !== "production",

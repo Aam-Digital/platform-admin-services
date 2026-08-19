@@ -6,12 +6,65 @@ NestJS API for managing Aam Digital SaaS instances.
 
 | Method | Path | Auth | Description |
 |--------|------|------|-------------|
-| `GET` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | List all instances |
+| `GET` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | List instances (active ones by default) |
 | `POST` | `/api/v1/instances` | Bearer JWT / Basic Auth (admin) | Create a new instance |
+| `PATCH` | `/api/v1/instances/:name` | Basic Auth (admin) | Hibernate or re-activate an instance |
+| `DELETE` | `/api/v1/instances/:name` | Basic Auth (admin) | Delete a hibernated instance's record |
 | `POST` | `/api/v1/instances/webhook/brevo` | Token + IP whitelist | Brevo webhook to create instance |
 | `GET` | `/api/v1/instances/check/:name` | Public (rate-limited) | Check name availability |
 
 For API specs refer to the OpenAPI docs (generated at runtime) available at `/api/docs`.
+
+### Shutting an instance down
+
+`GET /api/v1/instances` is the manifest the
+[cluster deployment](https://github.com/Aam-Digital/aam-cloud-infrastructure/tree/main/infra/aam-digital-instances)
+reads: it provisions what the response lists and destroys what it does not. So
+taking a system down means taking it out of that response, and the two ways to
+do that differ in what is kept.
+
+This only reaches the cluster on the stacks that actually read the manifest —
+production does not yet, so there a status change is recorded here and nothing
+else happens.
+
+**Hibernate** — the instance leaves the manifest, its record and its name stay:
+
+```bash
+curl -u "admin:$ADMIN_PASSWORD" -X PATCH \
+  "https://admin.$DOMAIN/api/v1/instances/my-org?confirm=my-org" \
+  -H 'content-type: application/json' -d '{"status":"inactive"}'
+```
+
+The next deployment (dispatched automatically) removes the instance's
+namespace, its Keycloak realm and its database volume claim. The CouchDB volume
+itself is retained by the cluster, and so are its backups — but nothing
+restores an instance from them, so re-activating with `{"status":"active"}`
+provisions an *empty* instance. Use `?status=all` on `GET` to see hibernated
+instances; they keep their name reserved and `check/:name` keeps reporting it
+as taken.
+
+**Delete** — the record goes and the name is freed:
+
+```bash
+curl -u "admin:$ADMIN_PASSWORD" -X DELETE \
+  "https://admin.$DOMAIN/api/v1/instances/my-org?confirm=my-org"
+```
+
+Only an instance that is already hibernated can be deleted, and no deployment
+is triggered: it is out of the manifest already, so there is nothing left in
+the cluster to remove. **This does not erase the data.** The retained volume and
+its backups have to be purged in the cluster.
+
+Creating an instance under a freed name does not bring the old one back: the
+retained volume is `Released` and is never bound again, so the new instance
+starts empty and the old volume stays orphaned until someone removes it.
+
+Both calls take the admin password only — deliberately not the GitHub OIDC
+token the other admin routes also accept, which is authorized by its repository
+claim alone — and both require `confirm` to repeat the instance name, because
+valid credentials do not establish that the caller meant this particular
+instance. Both are logged at `warn` with the client IP and therefore land in
+Sentry.
 
 ### Configuration
 
