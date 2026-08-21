@@ -66,6 +66,24 @@ valid credentials do not establish that the caller meant this particular
 instance. Both are logged at `warn` with the client IP and therefore land in
 Sentry.
 
+### Alternative hostnames
+
+Besides its `<name>.<cluster domain>` hostname, an instance can be served on any
+number of `alternativeHostnames` — full hostnames such as
+`my-org.aam-digital.com` or a domain of the organisation's own. The
+infrastructure reads them from `GET /api/v1/instances` and gives each one an
+Ingress host and its own certificate.
+
+Two consequences:
+
+- A hostname only works once its DNS record points at the cluster. Until then
+  the certificate cannot be issued and the hostname serves a certificate for a
+  different name, so browsers warn.
+- A hostname becomes routing configuration in the cluster. It is therefore
+  settable through `POST /api/v1/instances` (admin) only, never through the
+  Brevo webhook, and a hostname already claimed by another instance is
+  rejected with `409`.
+
 ### Configuration
 
 See `.env.example` for environment variables.

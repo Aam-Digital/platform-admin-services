@@ -37,6 +37,17 @@ export class Instance {
   @Column({ type: "varchar", length: 16, default: "active" })
   status: InstanceStatus;
 
+  /**
+   * Full hostnames the instance is served on in addition to its
+   * `<name>.<cluster domain>` one, e.g. a domain of its own. The
+   * infrastructure adds an Ingress host and a certificate for each.
+   *
+   * `simple-array` rather than a Postgres `text[]`, because the e2e tests run
+   * the same entity against SQLite.
+   */
+  @Column({ name: "alternative_hostnames", type: "simple-array", default: "" })
+  alternativeHostnames: string[];
+
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
 

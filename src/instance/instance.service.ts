@@ -130,10 +130,14 @@ export class InstanceService implements OnModuleInit {
       }
     }
 
+    const alternativeHostnames = [...new Set(dto.alternativeHostnames ?? [])];
+    await this.assertHostnamesUnclaimed(alternativeHostnames);
+
     const instance = this.instanceRepo.create({
       name: dto.name,
       ownerEmail: dto.ownerEmail,
       locale: dto.locale ?? "en-US",
+      alternativeHostnames,
     });
 
     const saved = await this.instanceRepo.save(instance);
@@ -272,6 +276,38 @@ export class InstanceService implements OnModuleInit {
         `Confirmation required: repeat the instance name as the "confirm" ` +
           `query parameter (?confirm=${name}).`,
       );
+    }
+  }
+
+  /**
+   * Two instances claiming the same hostname would each get an Ingress for it
+   * and the ingress controller would serve whichever it saw first, without
+   * either instance's owner being told. So a clash is rejected here.
+   *
+   * All instances are read rather than queried: `alternativeHostnames` is a
+   * `simple-array` column, which is not searchable, and there are dozens of
+   * instances rather than thousands.
+   */
+  private async assertHostnamesUnclaimed(hostnames: string[]): Promise<void> {
+    if (hostnames.length === 0) {
+      return;
+    }
+
+    const claimed = new Map(
+      (await this.instanceRepo.find()).flatMap((instance) =>
+        instance.alternativeHostnames.map(
+          (hostname) => [hostname, instance.name] as const,
+        ),
+      ),
+    );
+
+    for (const hostname of hostnames) {
+      const claimedBy = claimed.get(hostname);
+      if (claimedBy) {
+        throw new ConflictException(
+          `Hostname "${hostname}" is already used by instance "${claimedBy}".`,
+        );
+      }
     }
   }
 

@@ -230,6 +230,54 @@ describe("Instances (e2e)", () => {
         .expect(400);
     });
 
+    it("should accept alternative hostnames", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({
+          name: "hosted-org",
+          ownerEmail: "hosted@example.com",
+          alternativeHostnames: ["hosted-org.aam-digital.com"],
+        })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.alternativeHostnames).toEqual([
+            "hosted-org.aam-digital.com",
+          ]);
+        });
+    });
+
+    it("should default alternative hostnames to an empty list", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name: "plain-org", ownerEmail: "plain@example.com" })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.alternativeHostnames).toEqual([]);
+        });
+    });
+
+    it("should return 400 for a malformed alternative hostname", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({
+          name: "bad-host-org",
+          ownerEmail: "x@example.com",
+          alternativeHostnames: ["Not-Lowercase.example.org"],
+        })
+        .expect(400);
+    });
+
+    it("should return 409 when another instance already claims the hostname", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({
+          name: "second-org",
+          ownerEmail: "second@example.com",
+          alternativeHostnames: ["hosted-org.aam-digital.com"],
+        })
+        .expect(409);
+    });
+
     it("should accept an optional locale", () => {
       return request(app.getHttpServer())
         .post("/api/v1/instances")
@@ -286,6 +334,17 @@ describe("Instances (e2e)", () => {
         .post("/api/v1/instances/webhook/brevo?token=test-token")
         .send(VALID_BREVO_PAYLOAD)
         .expect(409);
+    });
+
+    it("should reject a Brevo payload carrying alternative hostnames", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "x@example.com",
+          attributes: { AAM_SYSTEM: "hostname-org" },
+          alternativeHostnames: ["admin.aam-digital.app"],
+        })
+        .expect(400);
     });
 
     it("should reject when token is wrong", () => {

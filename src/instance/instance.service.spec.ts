@@ -250,6 +250,47 @@ describe("InstanceService", () => {
         service.create({ name: "admin", ownerEmail: "a@b.com" }),
       ).rejects.toThrow(ConflictException);
     });
+
+    it("should store alternative hostnames without duplicates", async () => {
+      const entity = { name: "new-org" } as Instance;
+      repo.findOneBy.mockResolvedValue(null);
+      repo.find.mockResolvedValue([]);
+      repo.create.mockReturnValue(entity);
+      repo.save.mockResolvedValue(entity);
+
+      await service.create({
+        name: "new-org",
+        ownerEmail: "a@b.com",
+        alternativeHostnames: [
+          "new-org.aam-digital.com",
+          "new-org.aam-digital.com",
+        ],
+      });
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          alternativeHostnames: ["new-org.aam-digital.com"],
+        }),
+      );
+    });
+
+    it("should throw ConflictException if another instance claims the hostname", async () => {
+      repo.findOneBy.mockResolvedValue(null);
+      repo.find.mockResolvedValue([
+        {
+          name: "other-org",
+          alternativeHostnames: ["shared.example.org"],
+        } as Instance,
+      ]);
+
+      await expect(
+        service.create({
+          name: "new-org",
+          ownerEmail: "a@b.com",
+          alternativeHostnames: ["shared.example.org"],
+        }),
+      ).rejects.toThrow(ConflictException);
+    });
   });
 
   describe("checkAvailability", () => {

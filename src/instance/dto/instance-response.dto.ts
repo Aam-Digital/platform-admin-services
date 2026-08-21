@@ -13,4 +13,12 @@ export class InstanceResponseDto {
 
   @ApiProperty({ enum: INSTANCE_STATUSES, example: "active" })
   status: InstanceStatus;
+
+  @ApiProperty({
+    description:
+      "Further hostnames the instance is served on, besides `<name>.<cluster domain>`.",
+    example: ["my-organization.aam-digital.com"],
+    type: [String],
+  })
+  alternativeHostnames: string[];
 }
