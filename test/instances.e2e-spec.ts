@@ -606,17 +606,19 @@ describe("Instances (e2e)", () => {
     }
 
     it("should default a new instance to standard mode without overrides", async () => {
-      await createInstance("plain-org");
+      await createInstance("plain-mode-org");
 
       await request(app.getHttpServer())
-        .get("/api/v1/instances/check/plain-org")
+        .get("/api/v1/instances/check/plain-mode-org")
         .expect(200);
 
       await request(app.getHttpServer())
         .get("/api/v1/instances")
         .expect(200)
         .expect((res) => {
-          const created = res.body.find((i: any) => i.name === "plain-org");
+          const created = res.body.find(
+            (i: any) => i.name === "plain-mode-org",
+          );
           expect(created.mode).toBe("standard");
           expect(created.appConfigOverride).toBeNull();
         });
