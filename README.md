@@ -13,11 +13,6 @@ its status, dispatches that deployment.
 The OpenAPI docs at `/api/docs` (Swagger UI, generated at runtime) document the
 endpoints, their authentication and the effect of each operation.
 
-`demo` and `preview` are reserved instance names, among others: both are the
-platform's own instances, defined in the [cluster deployment][infra] rather
-than through this API, and a collision fails the deployment for every
-instance, not just the one requested.
-
 ### Shutting an instance down
 
 Taking a system down means taking it out of the manifest, and the two ways to do
@@ -61,11 +56,13 @@ the Brevo webhook, and one already claimed by another instance is rejected with
 
 How an instance stores its data is a `mode`, not a set of app settings:
 `standard` is a regular system on its own database, `demo` runs on generated
-data that is not persisted. It is the only app-level choice the normal API
-offers, settable when creating an instance — a named mode rather than the
-underlying settings, because those combine into states that must not be
-requestable, like a live instance one typo away from silently discarding what
-is entered into it.
+data that is not persisted, and `online` is accepted already but not yet mapped
+to an app configuration by the infrastructure
+([aam-cloud-infrastructure#222](https://github.com/Aam-Digital/aam-cloud-infrastructure/issues/222)).
+It is the only app-level choice the normal API offers, settable when creating
+an instance — a named mode rather than the underlying settings, because those
+combine into states that must not be requestable, like a live instance one
+typo away from silently discarding what is entered into it.
 
 Anything else is an **override** — admin-only, unset by default, stored as
 given and applied on top of the mode. It is the escape hatch for trying a

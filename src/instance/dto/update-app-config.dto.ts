@@ -1,6 +1,11 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
 import { IsIn, IsObject, IsOptional } from "class-validator";
-import { INSTANCE_MODES, InstanceMode } from "../instance.entity";
+import {
+  APP_CONFIG_OVERRIDE_DESCRIPTION,
+  INSTANCE_MODES,
+  InstanceMode,
+  MODE_DESCRIPTION,
+} from "../instance.entity";
 
 /**
  * Both fields are optional and each is applied only when present: an absent
@@ -10,8 +15,8 @@ import { INSTANCE_MODES, InstanceMode } from "../instance.entity";
 export class UpdateAppConfigDto {
   @ApiPropertyOptional({
     description:
-      "How the instance stores its data. Moving a live system to `demo` stops " +
-      "it persisting what is entered into it; the data already in its " +
+      `${MODE_DESCRIPTION} Moving a live system to \`demo\` stops it ` +
+      "persisting what is entered into it; the data already in its " +
       "database is not erased.",
     enum: INSTANCE_MODES,
     example: "demo",
@@ -22,13 +27,8 @@ export class UpdateAppConfigDto {
 
   @ApiPropertyOptional({
     description:
-      "Raw overrides for the app's `config.json`, applied on top of what the " +
-      "mode and the deployment defaults produce. `null` unsets them. " +
-      "Stored as given: which settings are valid, and which of them the " +
-      "deployment owns and therefore refuses to let through, is decided by " +
-      "the infrastructure, so a value accepted here can still be ignored " +
-      "when it is applied. `config.json` is fetched by the browser — never " +
-      "put a secret in here.",
+      `${APP_CONFIG_OVERRIDE_DESCRIPTION} \`null\` unsets them. Never put ` +
+      "a secret in here.",
     type: "object",
     additionalProperties: true,
     nullable: true,

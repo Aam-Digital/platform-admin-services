@@ -703,6 +703,29 @@ describe("Instances (e2e)", () => {
         });
     });
 
+    // The infrastructure does not map this mode to an app configuration yet
+    // (aam-cloud-infrastructure#222), but this API already accepts and stores
+    // it, same as it did for `demo` before its counterpart landed.
+    it("should accept and round-trip the online mode", async () => {
+      await createInstance("online-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/online-org/app-config?confirm=online-org")
+        .send({ mode: "online" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.mode).toBe("online");
+        });
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const found = res.body.find((i: any) => i.name === "online-org");
+          expect(found.mode).toBe("online");
+        });
+    });
+
     it("should unset the overrides for an explicit null", async () => {
       await createInstance("unset-org");
       await request(app.getHttpServer())

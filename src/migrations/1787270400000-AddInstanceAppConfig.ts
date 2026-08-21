@@ -16,7 +16,7 @@ export class AddInstanceAppConfig1787270400000 implements MigrationInterface {
     await queryRunner.query(`
       ALTER TABLE "instances"
         ADD CONSTRAINT "CHK_instances_mode"
-        CHECK ("mode" IN ('standard', 'demo'))
+        CHECK ("mode" IN ('standard', 'demo', 'online'))
     `);
     // Nullable and without a default: "no overrides" is the normal case and is
     // worth being distinguishable from "an empty set of overrides".

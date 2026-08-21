@@ -7,7 +7,11 @@ import {
   IsString,
   Matches,
 } from "class-validator";
-import { INSTANCE_MODES, InstanceMode } from "../instance.entity";
+import {
+  INSTANCE_MODES,
+  InstanceMode,
+  MODE_DESCRIPTION,
+} from "../instance.entity";
 
 /**
  * Pattern for valid instance names (subdomains).
@@ -72,10 +76,7 @@ export class CreateInstanceDto {
   alternativeHostnames?: string[];
 
   @ApiPropertyOptional({
-    description:
-      "How the instance stores its data. `standard` is a regular system on " +
-      "its own database. `demo` runs on generated data that is not persisted, " +
-      "for a system to show rather than to work in. Defaults to `standard`.",
+    description: `${MODE_DESCRIPTION} Defaults to \`standard\`.`,
     enum: INSTANCE_MODES,
     default: "standard",
   })

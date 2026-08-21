@@ -1,9 +1,11 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
+  APP_CONFIG_OVERRIDE_DESCRIPTION,
   INSTANCE_MODES,
   INSTANCE_STATUSES,
   InstanceMode,
   InstanceStatus,
+  MODE_DESCRIPTION,
 } from "../instance.entity";
 
 export class InstanceResponseDto {
@@ -27,14 +29,17 @@ export class InstanceResponseDto {
   })
   alternativeHostnames: string[];
 
-  @ApiProperty({ enum: INSTANCE_MODES, example: "standard" })
+  @ApiProperty({
+    description: MODE_DESCRIPTION,
+    enum: INSTANCE_MODES,
+    example: "standard",
+  })
   mode: InstanceMode;
 
   @ApiProperty({
     description:
-      "Raw `config.json` overrides, or `null` when none are set. Readable by " +
-      "every caller of this endpoint, because it ends up in a file the " +
-      "browser fetches anyway.",
+      `${APP_CONFIG_OVERRIDE_DESCRIPTION} \`null\` when none are set — the ` +
+      "normal case, and also returned to every caller of this endpoint.",
     type: "object",
     additionalProperties: true,
     nullable: true,
