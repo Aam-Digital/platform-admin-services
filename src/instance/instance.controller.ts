@@ -43,14 +43,6 @@ import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
 
 /**
- * Where the cluster-side consequences of taking an instance down are described.
- * They belong to the deployment rather than to this API, so they are linked
- * rather than restated here, where they would go stale first.
- */
-const INFRA_DEPLOYMENT_DOCS =
-  "https://github.com/Aam-Digital/aam-cloud-infrastructure/tree/main/infra/aam-digital-instances";
-
-/**
  * Documents the `confirm` query parameter of the endpoints that take an
  * instance down. See {@link InstanceService.setStatus}.
  */
@@ -128,8 +120,7 @@ export class InstanceController {
       "resources down. The record and the name are kept, but there is no " +
       "automated way back in: re-activating provisions an empty instance " +
       "rather than restoring the old one. What is torn down and what the " +
-      "cluster keeps is documented with the cluster deployment: " +
-      INFRA_DEPLOYMENT_DOCS,
+      "cluster keeps is documented with the infrastructure code.",
     operationId: "updateInstanceStatus",
   })
   @ApiParam({ name: "name", description: "The instance name (subdomain)." })
