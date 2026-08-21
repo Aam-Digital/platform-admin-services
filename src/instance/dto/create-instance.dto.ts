@@ -1,11 +1,27 @@
 import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
-import { IsEmail, IsOptional, IsString, Matches } from "class-validator";
+import {
+  IsArray,
+  IsEmail,
+  IsOptional,
+  IsString,
+  Matches,
+} from "class-validator";
 
 /**
  * Pattern for valid instance names (subdomains).
  * Must start and end with alphanumeric, may contain hyphens, 3-63 chars total.
  */
 export const INSTANCE_NAME_PATTERN = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/;
+
+/**
+ * Pattern for a full hostname: lowercase labels separated by dots, at least
+ * two of them. Lowercase because the infrastructure applies the same pattern
+ * and skips a manifest entry that does not match.
+ *
+ * See https://github.com/Aam-Digital/aam-cloud-infrastructure/blob/main/infra/aam-digital-instances/src/index.ts
+ */
+export const HOSTNAME_PATTERN =
+  /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)+$/;
 
 export class CreateInstanceDto {
   @ApiProperty({
@@ -35,4 +51,20 @@ export class CreateInstanceDto {
   @IsOptional()
   @IsString()
   locale?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Further hostnames the instance is served on, besides `<name>.<cluster domain>`. " +
+      "Full lowercase hostnames; each one needs a DNS record pointing at the cluster " +
+      "before the instance can serve it.",
+    example: ["my-organization.aam-digital.com", "app.my-organization.org"],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @Matches(HOSTNAME_PATTERN, {
+    each: true,
+    message: "each alternative hostname must be a lowercase full hostname",
+  })
+  alternativeHostnames?: string[];
 }
