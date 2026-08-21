@@ -43,6 +43,14 @@ import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
 
 /**
+ * Where the cluster-side consequences of taking an instance down are described.
+ * They belong to the deployment rather than to this API, so they are linked
+ * rather than restated here, where they would go stale first.
+ */
+const INFRA_DEPLOYMENT_DOCS =
+  "https://github.com/Aam-Digital/aam-cloud-infrastructure/tree/main/infra/aam-digital-instances";
+
+/**
  * Documents the `confirm` query parameter of the endpoints that take an
  * instance down. See {@link InstanceService.setStatus}.
  */
@@ -96,7 +104,11 @@ export class InstanceController {
     description: "Instance created successfully.",
     type: InstanceResponseDto,
   })
-  @ApiConflictResponse({ description: "Instance name is already taken." })
+  @ApiConflictResponse({
+    description:
+      "The instance name is reserved or already taken, or one of the " +
+      "`alternativeHostnames` is already used by another instance.",
+  })
   @ApiUnauthorizedResponse({
     description:
       "Authentication required – invalid or missing JWT token or Basic credentials.",
@@ -112,11 +124,12 @@ export class InstanceController {
     summary: "Hibernate or re-activate an instance",
     description:
       "`inactive` drops the instance from the deployment manifest, so the " +
-      "deployment triggered by this call destroys its namespace, its " +
-      "Keycloak realm and its database volume claim. The record and the name " +
-      "are kept, and the volume itself is retained by the cluster, but there " +
-      "is no automated way back in: re-activating provisions an empty " +
-      "instance.",
+      "deployment triggered by this call tears the instance's cluster " +
+      "resources down. The record and the name are kept, but there is no " +
+      "automated way back in: re-activating provisions an empty instance " +
+      "rather than restoring the old one. What is torn down and what the " +
+      "cluster keeps is documented with the cluster deployment: " +
+      INFRA_DEPLOYMENT_DOCS,
     operationId: "updateInstanceStatus",
   })
   @ApiParam({ name: "name", description: "The instance name (subdomain)." })
@@ -148,9 +161,8 @@ export class InstanceController {
     description:
       "Removes the record and frees the name. Only an already inactive " +
       "instance can be deleted, so the step that takes a system down is " +
-      "always the reversible one. The instance's data is not erased: its " +
-      "volume and backups are retained in the cluster and have to be purged " +
-      "there.",
+      "always the reversible one. This does not erase the instance's data, " +
+      "which outlives the record in the cluster and has to be purged there.",
     operationId: "deleteInstance",
   })
   @ApiParam({ name: "name", description: "The instance name (subdomain)." })
