@@ -2,10 +2,16 @@ import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
 import {
   IsArray,
   IsEmail,
+  IsIn,
   IsOptional,
   IsString,
   Matches,
 } from "class-validator";
+import {
+  INSTANCE_MODES,
+  InstanceMode,
+  MODE_DESCRIPTION,
+} from "../instance.entity";
 
 /**
  * Pattern for valid instance names (subdomains).
@@ -68,4 +74,13 @@ export class CreateInstanceDto {
     message: "each alternative hostname must be a lowercase full hostname",
   })
   alternativeHostnames?: string[];
+
+  @ApiPropertyOptional({
+    description: `${MODE_DESCRIPTION} Defaults to \`standard\`.`,
+    enum: INSTANCE_MODES,
+    default: "standard",
+  })
+  @IsOptional()
+  @IsIn(INSTANCE_MODES)
+  mode?: InstanceMode;
 }

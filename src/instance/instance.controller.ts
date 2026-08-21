@@ -37,6 +37,7 @@ import {
   CreateInstanceDto,
   InstanceResponseDto,
   ListInstancesQueryDto,
+  UpdateAppConfigDto,
   UpdateInstanceDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
@@ -141,6 +142,44 @@ export class InstanceController {
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
     return this.instanceService.setStatus(name, dto.status, confirm, clientIp);
+  }
+
+  @Patch(":name/app-config")
+  @UseGuards(BasicAuthGuard)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Change an instance's app configuration",
+    description:
+      "Sets the instance's `mode`, its raw `config.json` overrides, or both; " +
+      "a field left out of the body keeps its stored value. The overrides are " +
+      "stored as given and interpreted where they are applied, so a value " +
+      "accepted here can still be refused or ignored by the deployment. " +
+      "`confirm` is required for every call, not only for the changes that " +
+      "take something away as on the status route: whether a change here " +
+      "stops an instance persisting its data can depend on the contents of an " +
+      "override this API does not interpret.",
+    operationId: "updateInstanceAppConfig",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description: "Updated instance.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "Missing or mismatched `confirm`, or an empty body.",
+  })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async updateAppConfig(
+    @Param("name") name: string,
+    @Body() dto: UpdateAppConfigDto,
+    @Ip() clientIp: string,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.updateAppConfig(name, dto, confirm, clientIp);
   }
 
   @Delete(":name")

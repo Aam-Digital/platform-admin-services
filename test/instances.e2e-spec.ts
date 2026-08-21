@@ -3,9 +3,10 @@ jest.mock("@octokit/rest", () => ({ Octokit: jest.fn() }));
 import { INestApplication, ValidationPipe } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
-import { TypeOrmModule } from "@nestjs/typeorm";
+import { TypeOrmModule, getRepositoryToken } from "@nestjs/typeorm";
 import { Octokit } from "@octokit/rest";
 import request from "supertest";
+import { Repository } from "typeorm";
 import { Instance } from "../src/instance/instance.entity";
 import { InstanceModule } from "../src/instance/instance.module";
 
@@ -380,6 +381,45 @@ describe("Instances (e2e)", () => {
         .send({ email: "x@example.com", attributes: {} })
         .expect(400);
     });
+
+    it("should create a standard instance without overrides", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "brevo-plain@example.com",
+          attributes: { AAM_SYSTEM: "brevo-plain-org" },
+        })
+        .expect(201)
+        .expect((res) => {
+          expect(res.body.mode).toBe("standard");
+          expect(res.body.appConfigOverride).toBeNull();
+        });
+    });
+
+    // The webhook is authenticated by a shared token, the weakest of the create
+    // paths, so it must not be able to ask for a demo instance. Two things stop
+    // it, and this pins both: the controller builds the create DTO field by
+    // field, and — despite the index signature on `BrevoWebhookAttributes`, which
+    // has no effect on validation — an unknown attribute is rejected outright.
+    it("should reject an unknown attribute rather than pass it through", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "brevo-mode@example.com",
+          attributes: { AAM_SYSTEM: "brevo-mode-org", mode: "demo" },
+        })
+        .expect(400);
+    });
+
+    it("should reject any unknown attribute, not just a known field name", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances/webhook/brevo?token=test-token")
+        .send({
+          email: "brevo-extra@example.com",
+          attributes: { AAM_SYSTEM: "brevo-extra-org", FIRSTNAME: "Ada" },
+        })
+        .expect(400);
+    });
   });
 
   // ────────────────────────────────────────────────────────────────────
@@ -553,6 +593,254 @@ describe("Instances (e2e)", () => {
   // ────────────────────────────────────────────────────────────────────
   // GET /api/v1/instances/check/:name
   // ────────────────────────────────────────────────────────────────────
+
+  describe("PATCH /api/v1/instances/:name/app-config", () => {
+    async function createInstance(
+      name: string,
+      body: Record<string, unknown> = {},
+    ): Promise<void> {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name, ownerEmail: `${name}@example.com`, ...body })
+        .expect(201);
+    }
+
+    it("should default a new instance to standard mode without overrides", async () => {
+      await createInstance("plain-mode-org");
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/check/plain-mode-org")
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const created = res.body.find(
+            (i: any) => i.name === "plain-mode-org",
+          );
+          expect(created.mode).toBe("standard");
+          expect(created.appConfigOverride).toBeNull();
+        });
+    });
+
+    it("should accept a mode when creating an instance", async () => {
+      await createInstance("demo-org", { mode: "demo" });
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const created = res.body.find((i: any) => i.name === "demo-org");
+          expect(created.mode).toBe("demo");
+        });
+    });
+
+    it("should reject an unknown mode when creating an instance", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({
+          name: "bogus-mode-org",
+          ownerEmail: "a@b.com",
+          mode: "hibernating",
+        })
+        .expect(400);
+    });
+
+    // The route that creates an instance also takes a user token and serves the
+    // Brevo webhook, so the raw overrides must not be reachable there. The
+    // global ValidationPipe rejects the unknown property.
+    it("should refuse overrides when creating an instance", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({
+          name: "sneaky-org",
+          ownerEmail: "a@b.com",
+          appConfigOverride: { session_type: "mock" },
+        })
+        .expect(400);
+    });
+
+    // `whitelist: true` strips properties without a validation decorator. The
+    // overrides are one opaque value rather than a nested DTO, so the pipe must
+    // leave their keys, at every depth, alone.
+    it("should store overrides unchanged, including nested keys", async () => {
+      await createInstance("override-org");
+      const override = {
+        webmaster_email: "it@example.org",
+        site: { title: "Example", flags: [1, 2] },
+      };
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/override-org/app-config?confirm=override-org")
+        .send({ appConfigOverride: override })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.appConfigOverride).toEqual(override);
+        });
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const found = res.body.find((i: any) => i.name === "override-org");
+          expect(found.appConfigOverride).toEqual(override);
+        });
+    });
+
+    it("should change the mode without touching the overrides", async () => {
+      await createInstance("both-org");
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/both-org/app-config?confirm=both-org")
+        .send({ appConfigOverride: { keep: true } })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/both-org/app-config?confirm=both-org")
+        .send({ mode: "demo" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.mode).toBe("demo");
+          expect(res.body.appConfigOverride).toEqual({ keep: true });
+        });
+    });
+
+    // The infrastructure does not map this mode to an app configuration yet
+    // (aam-cloud-infrastructure#222), but this API already accepts and stores
+    // it, same as it did for `demo` before its counterpart landed.
+    it("should accept and round-trip the online mode", async () => {
+      await createInstance("online-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/online-org/app-config?confirm=online-org")
+        .send({ mode: "online" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.mode).toBe("online");
+        });
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const found = res.body.find((i: any) => i.name === "online-org");
+          expect(found.mode).toBe("online");
+        });
+    });
+
+    it("should unset the overrides for an explicit null", async () => {
+      await createInstance("unset-org");
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/unset-org/app-config?confirm=unset-org")
+        .send({ appConfigOverride: { gone: true } })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/unset-org/app-config?confirm=unset-org")
+        .send({ appConfigOverride: null })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.appConfigOverride).toBeNull();
+        });
+    });
+
+    it("should require confirm even for a harmless change", async () => {
+      await createInstance("confirm-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/confirm-org/app-config")
+        .send({ mode: "standard" })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/confirm-org/app-config?confirm=other-org")
+        .send({ mode: "standard" })
+        .expect(400);
+    });
+
+    it("should reject a body that changes nothing", async () => {
+      await createInstance("empty-body-org");
+
+      return request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/empty-body-org/app-config?confirm=empty-body-org",
+        )
+        .send({})
+        .expect(400);
+    });
+
+    it("should reject an unknown mode", async () => {
+      await createInstance("bad-mode-org");
+
+      return request(app.getHttpServer())
+        .patch("/api/v1/instances/bad-mode-org/app-config?confirm=bad-mode-org")
+        .send({ mode: "mock" })
+        .expect(400);
+    });
+
+    it("should reject overrides that are not an object", async () => {
+      await createInstance("scalar-org");
+
+      return (
+        request(app.getHttpServer())
+          .patch("/api/v1/instances/scalar-org/app-config?confirm=scalar-org")
+          .send({ appConfigOverride: "session_type=mock" })
+          .expect(400)
+          // asserted on the message, because an empty body is a 400 as well and
+          // would let this pass if the pipe had silently dropped the property
+          .expect((res) => {
+            expect(JSON.stringify(res.body.message)).toContain(
+              "appConfigOverride",
+            );
+          })
+      );
+    });
+
+    it("should 404 for an unknown instance", () => {
+      return request(app.getHttpServer())
+        .patch("/api/v1/instances/no-such-org/app-config?confirm=no-such-org")
+        .send({ mode: "demo" })
+        .expect(404);
+    });
+
+    it("should not deploy for a mode that is already set", async () => {
+      await createInstance("noop-org");
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/noop-org/app-config?confirm=noop-org")
+        .send({ mode: "standard" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.mode).toBe("standard");
+        });
+
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    // What a value corrupted outside this API does. `simple-json` is text with a
+    // `JSON.parse` on read, so it fails while the entity is hydrated, and it
+    // fails for the whole response rather than for the one row: a single bad
+    // value takes the manifest down for every instance. That direction is the
+    // safe one for the deployment — it cannot fetch the manifest, so it destroys
+    // nothing — but it is not contained, so it is worth knowing it behaves this
+    // way rather than skipping the row.
+    it("should fail the whole manifest on an unparseable stored override", async () => {
+      await createInstance("corrupt-org");
+      const repo = app.get<Repository<Instance>>(getRepositoryToken(Instance));
+      await repo.query(
+        `UPDATE instances SET app_config_override = 'not json' WHERE name = 'corrupt-org'`,
+      );
+
+      await request(app.getHttpServer()).get("/api/v1/instances").expect(500);
+
+      // and recovers once the value is valid again
+      await repo.query(
+        `UPDATE instances SET app_config_override = NULL WHERE name = 'corrupt-org'`,
+      );
+      await request(app.getHttpServer()).get("/api/v1/instances").expect(200);
+    });
+  });
 
   describe("GET /api/v1/instances/check/:name", () => {
     it("should report a taken name as unavailable", () => {

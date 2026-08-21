@@ -1,5 +1,12 @@
 import { ApiProperty } from "@nestjs/swagger";
-import { INSTANCE_STATUSES, InstanceStatus } from "../instance.entity";
+import {
+  APP_CONFIG_OVERRIDE_DESCRIPTION,
+  INSTANCE_MODES,
+  INSTANCE_STATUSES,
+  InstanceMode,
+  InstanceStatus,
+  MODE_DESCRIPTION,
+} from "../instance.entity";
 
 export class InstanceResponseDto {
   @ApiProperty({ example: "my-organization" })
@@ -21,4 +28,22 @@ export class InstanceResponseDto {
     type: [String],
   })
   alternativeHostnames: string[];
+
+  @ApiProperty({
+    description: MODE_DESCRIPTION,
+    enum: INSTANCE_MODES,
+    example: "standard",
+  })
+  mode: InstanceMode;
+
+  @ApiProperty({
+    description:
+      `${APP_CONFIG_OVERRIDE_DESCRIPTION} \`null\` when none are set — the ` +
+      "normal case, and also returned to every caller of this endpoint.",
+    type: "object",
+    additionalProperties: true,
+    nullable: true,
+    example: null,
+  })
+  appConfigOverride: Record<string, unknown> | null;
 }
