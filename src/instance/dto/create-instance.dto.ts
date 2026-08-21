@@ -56,7 +56,8 @@ export class CreateInstanceDto {
     description:
       "Further hostnames the instance is served on, besides `<name>.<cluster domain>`. " +
       "Full lowercase hostnames; each one needs a DNS record pointing at the cluster " +
-      "before the instance can serve it.",
+      "before the instance can serve it — until then no certificate can be issued " +
+      "and browsers warn about the one they get.",
     example: ["my-organization.aam-digital.com", "app.my-organization.org"],
     type: [String],
   })

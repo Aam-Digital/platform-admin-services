@@ -9,5 +9,9 @@ export default new DataSource({
   password: process.env.POSTGRES_PASSWORD ?? "aam_admin_secret",
   database: process.env.POSTGRES_DB ?? "aam_admin",
   entities: [Instance],
-  migrations: ["dist/migrations/*.js"],
+  // The `migration:*` scripts run this file through ts-node, so the sources
+  // are what they can load — `tsconfig.json` has `rootDir: "./"`, so the build
+  // emits to `dist/src/migrations/` and a `dist/migrations/` glob finds
+  // nothing at all.
+  migrations: ["src/migrations/*.ts"],
 });

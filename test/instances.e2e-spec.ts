@@ -104,6 +104,12 @@ describe("Instances (e2e)", () => {
       )
       .useClass(MockJwtAuthGuard)
       .overrideGuard(
+        await import("../src/auth/basic-auth.guard").then(
+          (m) => m.BasicAuthGuard,
+        ),
+      )
+      .useClass(MockJwtAuthGuard)
+      .overrideGuard(
         await import("../src/instance/guards/brevo-webhook.guard").then(
           (m) => m.BrevoWebhookGuard,
         ),
@@ -373,6 +379,174 @@ describe("Instances (e2e)", () => {
         .post("/api/v1/instances/webhook/brevo?token=test-token")
         .send({ email: "x@example.com", attributes: {} })
         .expect(400);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
+  // PATCH /api/v1/instances/:name  and  DELETE /api/v1/instances/:name
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("PATCH & DELETE /api/v1/instances/:name", () => {
+    /** Created per test, so no test depends on another one's leftovers. */
+    async function createInstance(name: string): Promise<void> {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name, ownerEmail: `${name}@example.com` })
+        .expect(201);
+    }
+
+    async function hibernate(name: string): Promise<void> {
+      await request(app.getHttpServer())
+        .patch(`/api/v1/instances/${name}?confirm=${name}`)
+        .send({ status: "inactive" })
+        .expect(200);
+    }
+
+    it("should hibernate an instance when the name is confirmed", async () => {
+      await createInstance("hibernate-me");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/hibernate-me?confirm=hibernate-me")
+        .send({ status: "inactive" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.status).toBe("inactive");
+        });
+    });
+
+    it("should drop a hibernated instance from the manifest but keep its name", async () => {
+      await createInstance("dropped-org");
+      await hibernate("dropped-org");
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const names = res.body.map((i: any) => i.name);
+          expect(names).not.toContain("dropped-org");
+        });
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances?status=all")
+        .expect(200)
+        .expect((res) => {
+          const names = res.body.map((i: any) => i.name);
+          expect(names).toContain("dropped-org");
+        });
+
+      // the name stays reserved, so nobody can claim the subdomain
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/check/dropped-org")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.reason).toBe("taken");
+        });
+    });
+
+    it("should reject an unknown status filter", () => {
+      return request(app.getHttpServer())
+        .get("/api/v1/instances?status=gone")
+        .expect(400);
+    });
+
+    it("should reject hibernating without a matching confirmation", async () => {
+      await createInstance("keep-me");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/keep-me")
+        .send({ status: "inactive" })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/keep-me?confirm=other-org")
+        .send({ status: "inactive" })
+        .expect(400);
+
+      // still in the manifest, so still deployed
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const names = res.body.map((i: any) => i.name);
+          expect(names).toContain("keep-me");
+        });
+    });
+
+    it("should re-activate a hibernated instance", async () => {
+      await createInstance("back-again");
+      await hibernate("back-again");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/back-again")
+        .send({ status: "active" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.status).toBe("active");
+        });
+    });
+
+    it("should reject an unknown status", async () => {
+      await createInstance("bad-status");
+
+      return request(app.getHttpServer())
+        .patch("/api/v1/instances/bad-status?confirm=bad-status")
+        .send({ status: "deleted" })
+        .expect(400);
+    });
+
+    it("should refuse to delete an active instance", async () => {
+      await createInstance("still-running");
+
+      await request(app.getHttpServer())
+        .delete("/api/v1/instances/still-running?confirm=still-running")
+        .expect(409);
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/check/still-running")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.reason).toBe("taken");
+        });
+    });
+
+    it("should reject deleting without a matching confirmation", async () => {
+      await createInstance("confirm-me");
+      await hibernate("confirm-me");
+
+      await request(app.getHttpServer())
+        .delete("/api/v1/instances/confirm-me")
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .delete("/api/v1/instances/confirm-me?confirm=other-org")
+        .expect(400);
+    });
+
+    it("should delete a hibernated instance and free its name", async () => {
+      await createInstance("purge-me");
+      await hibernate("purge-me");
+
+      await request(app.getHttpServer())
+        .delete("/api/v1/instances/purge-me?confirm=purge-me")
+        .expect(204);
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/check/purge-me")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.available).toBe(true);
+        });
+    });
+
+    it("should return 404 for an unknown instance", async () => {
+      await request(app.getHttpServer())
+        .delete("/api/v1/instances/no-such-org?confirm=no-such-org")
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/no-such-org?confirm=no-such-org")
+        .send({ status: "inactive" })
+        .expect(404);
     });
   });
 
