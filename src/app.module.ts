@@ -10,6 +10,7 @@ import { InstanceModule } from "./instance/instance.module";
 import { AddInstanceStatus1787097600000 } from "./migrations/1787097600000-AddInstanceStatus";
 import { AddAlternativeHostnames1755400000000 } from "./migrations/1755400000000-AddAlternativeHostnames";
 import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateInstances";
+import { AddInstanceAppConfig1787270400000 } from "./migrations/1787270400000-AddInstanceAppConfig";
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateI
           CreateInstances1745400000000,
           AddAlternativeHostnames1755400000000,
           AddInstanceStatus1787097600000,
+          AddInstanceAppConfig1787270400000,
         ],
         migrationsRun: config.get<string>("NODE_ENV") === "production",
         synchronize: config.get<string>("NODE_ENV") !== "production",
