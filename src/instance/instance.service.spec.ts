@@ -82,7 +82,7 @@ describe("InstanceService", () => {
     });
   });
 
-  describe("setStatus", () => {
+  describe("hibernate / activate", () => {
     const active = () => ({ name: "some-org", status: "active" }) as Instance;
     const inactive = () =>
       ({ name: "some-org", status: "inactive" }) as Instance;
@@ -93,12 +93,7 @@ describe("InstanceService", () => {
         status: "inactive",
       } as Instance);
 
-      const result = await service.setStatus(
-        "some-org",
-        "inactive",
-        "some-org",
-        "1.2.3.4",
-      );
+      const result = await service.hibernate("some-org", "some-org");
 
       expect(result.status).toBe("inactive");
       // guarded by the status that was read, so a concurrent change loses
@@ -106,6 +101,17 @@ describe("InstanceService", () => {
         { name: "some-org", status: "active" },
         { status: "inactive" },
       );
+    });
+
+    it("should activate a confirmed instance", async () => {
+      repo.findOneBy.mockResolvedValueOnce(inactive()).mockResolvedValue({
+        name: "some-org",
+        status: "active",
+      } as Instance);
+
+      const result = await service.activate("some-org", "some-org");
+
+      expect(result.status).toBe("active");
     });
 
     it("should report a conflict when the status changed under the request", async () => {
@@ -116,44 +122,52 @@ describe("InstanceService", () => {
         generatedMaps: [],
       });
 
-      await expect(
-        service.setStatus("some-org", "inactive", "some-org", "1.2.3.4"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.hibernate("some-org", "some-org")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("should reject hibernating without a matching confirmation", async () => {
       repo.findOneBy.mockResolvedValue(active());
 
-      await expect(
-        service.setStatus("some-org", "inactive", "other-org", "1.2.3.4"),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.setStatus("some-org", "inactive", undefined, "1.2.3.4"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.hibernate("some-org", "other-org")).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.hibernate("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(repo.update).not.toHaveBeenCalled();
     });
 
-    it("should re-activate without a confirmation", async () => {
-      repo.findOneBy.mockResolvedValueOnce(inactive()).mockResolvedValue({
-        name: "some-org",
-        status: "active",
-      } as Instance);
+    it("should reject activating without a matching confirmation", async () => {
+      // Activating is not the harmless direction it looks like: aimed at the
+      // wrong hibernated instance it brings an empty system up under that name.
+      repo.findOneBy.mockResolvedValue(inactive());
 
-      const result = await service.setStatus(
-        "some-org",
-        "active",
-        undefined,
-        "1.2.3.4",
+      await expect(service.activate("some-org", "other-org")).rejects.toThrow(
+        BadRequestException,
       );
+      await expect(service.activate("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(repo.update).not.toHaveBeenCalled();
+    });
 
-      expect(result.status).toBe("active");
+    it("should require confirmation even when the status is already the requested one", async () => {
+      // The no-op shortcut must not become a way past the check, or a script
+      // pointed at the wrong instance gets a 200 for it.
+      repo.findOneBy.mockResolvedValue(active());
+
+      await expect(service.activate("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should throw NotFoundException for an unknown instance", async () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.setStatus("no-such-org", "inactive", "no-such-org", "1.2.3.4"),
+        service.hibernate("no-such-org", "no-such-org"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -165,7 +179,7 @@ describe("InstanceService", () => {
         status: "inactive",
       } as Instance);
 
-      await service.remove("some-org", "some-org", "1.2.3.4");
+      await service.remove("some-org", "some-org");
 
       // conditional on the instance still being inactive at delete time
       expect(repo.delete).toHaveBeenCalledWith({
@@ -181,9 +195,9 @@ describe("InstanceService", () => {
       } as Instance);
       repo.delete.mockResolvedValue({ affected: 0, raw: {} });
 
-      await expect(
-        service.remove("some-org", "some-org", "1.2.3.4"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.remove("some-org", "some-org")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("should refuse to delete an active instance", async () => {
@@ -192,9 +206,9 @@ describe("InstanceService", () => {
         status: "active",
       } as Instance);
 
-      await expect(
-        service.remove("some-org", "some-org", "1.2.3.4"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.remove("some-org", "some-org")).rejects.toThrow(
+        ConflictException,
+      );
       expect(repo.delete).not.toHaveBeenCalled();
     });
 
@@ -204,12 +218,12 @@ describe("InstanceService", () => {
         status: "inactive",
       } as Instance);
 
-      await expect(
-        service.remove("some-org", undefined, "1.2.3.4"),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.remove("some-org", "other-org", "1.2.3.4"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.remove("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.remove("some-org", "other-org")).rejects.toThrow(
+        BadRequestException,
+      );
       expect(repo.delete).not.toHaveBeenCalled();
     });
 
@@ -217,8 +231,154 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.remove("no-such-org", "no-such-org", "1.2.3.4"),
+        service.remove("no-such-org", "no-such-org"),
       ).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe("updateAppConfig", () => {
+    const existing = {
+      name: "my-org",
+      mode: "standard",
+      appConfigOverride: null,
+    } as Instance;
+
+    it("should set the mode", async () => {
+      repo.findOneBy
+        .mockResolvedValueOnce(existing)
+        .mockResolvedValueOnce({ ...existing, mode: "demo" } as Instance);
+
+      const result = await service.updateAppConfig(
+        "my-org",
+        { mode: "demo" },
+        "my-org",
+      );
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { mode: "demo" },
+      );
+      expect(result.mode).toBe("demo");
+    });
+
+    it("should store the overrides as given", async () => {
+      const override = { webmaster_email: "it@example.org", nested: { a: 1 } };
+      repo.findOneBy.mockResolvedValueOnce(existing).mockResolvedValueOnce({
+        ...existing,
+        appConfigOverride: override,
+      } as Instance);
+
+      const result = await service.updateAppConfig(
+        "my-org",
+        { appConfigOverride: override },
+        "my-org",
+      );
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { appConfigOverride: override },
+      );
+      expect(result.appConfigOverride).toEqual(override);
+    });
+
+    it("should leave a field out of the update when it is absent", async () => {
+      repo.findOneBy
+        .mockResolvedValueOnce({
+          ...existing,
+          appConfigOverride: { keep: true },
+        } as Instance)
+        .mockResolvedValueOnce({
+          ...existing,
+          mode: "demo",
+          appConfigOverride: { keep: true },
+        } as Instance);
+
+      await service.updateAppConfig("my-org", { mode: "demo" }, "my-org");
+
+      // The exact-equality check above already proves appConfigOverride is
+      // left out of the SQL update, so `repo.update` never touches that
+      // column — mocked here, so it can't show the column surviving in a
+      // real row; "should change the mode without touching the overrides"
+      // in instances.e2e-spec.ts does that against a real (SQLite) table.
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { mode: "demo" },
+      );
+    });
+
+    it("should unset the overrides for an explicit null", async () => {
+      repo.findOneBy
+        .mockResolvedValueOnce({
+          ...existing,
+          appConfigOverride: { gone: true },
+        } as Instance)
+        .mockResolvedValueOnce(existing);
+
+      await service.updateAppConfig(
+        "my-org",
+        { appConfigOverride: null },
+        "my-org",
+      );
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { appConfigOverride: null },
+      );
+    });
+
+    it("should not deploy for a mode that is already set", async () => {
+      repo.findOneBy.mockResolvedValue(existing);
+
+      const result = await service.updateAppConfig(
+        "my-org",
+        { mode: "standard" },
+        "my-org",
+      );
+
+      expect(result).toBe(existing);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("should reject a body that changes nothing", async () => {
+      repo.findOneBy.mockResolvedValue(existing);
+
+      await expect(
+        service.updateAppConfig("my-org", {}, "my-org"),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("should require confirm to repeat the name, for every change", async () => {
+      repo.findOneBy.mockResolvedValue(existing);
+
+      await expect(
+        service.updateAppConfig("my-org", { mode: "standard" }, undefined),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateAppConfig(
+          "my-org",
+          { appConfigOverride: null },
+          "other-org",
+        ),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException for an unknown instance", async () => {
+      repo.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.updateAppConfig("nope", { mode: "demo" }, "nope"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ConflictException when the row went away", async () => {
+      repo.findOneBy.mockResolvedValue(existing);
+      repo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await expect(
+        service.updateAppConfig("my-org", { mode: "demo" }, "my-org"),
+      ).rejects.toThrow(ConflictException);
     });
   });
 
@@ -233,6 +393,40 @@ describe("InstanceService", () => {
 
       const result = await service.create(dto);
       expect(result.name).toBe("new-org");
+    });
+
+    it("should default to the standard mode and no overrides", async () => {
+      const dto = { name: "new-org", ownerEmail: "a@b.com" };
+      const entity = { ...dto, locale: "en-US" } as Instance;
+
+      repo.findOneBy.mockResolvedValue(null);
+      repo.create.mockReturnValue(entity);
+      repo.save.mockResolvedValue(entity);
+
+      await service.create(dto);
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: "standard", appConfigOverride: null }),
+      );
+    });
+
+    it("should create a demo instance when the mode asks for it", async () => {
+      const dto = {
+        name: "new-org",
+        ownerEmail: "a@b.com",
+        mode: "demo",
+      } as const;
+      const entity = { ...dto, locale: "en-US" } as Instance;
+
+      repo.findOneBy.mockResolvedValue(null);
+      repo.create.mockReturnValue(entity);
+      repo.save.mockResolvedValue(entity);
+
+      await service.create(dto);
+
+      expect(repo.create).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: "demo" }),
+      );
     });
 
     it("should throw ConflictException if name is taken", async () => {
@@ -291,6 +485,19 @@ describe("InstanceService", () => {
         }),
       ).rejects.toThrow(ConflictException);
     });
+
+    // The platform's own instances. Without this the API accepts the name and
+    // the deployment then fails the apply for every instance, not just this one.
+    it.each(["demo", "preview"])(
+      "should reject the platform instance name %s",
+      async (name) => {
+        repo.findOneBy.mockResolvedValue(null);
+
+        await expect(
+          service.create({ name, ownerEmail: "a@b.com" }),
+        ).rejects.toThrow(ConflictException);
+      },
+    );
   });
 
   describe("checkAvailability", () => {

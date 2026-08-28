@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Ip,
   Param,
   Patch,
   Post,
@@ -37,14 +36,15 @@ import {
   CreateInstanceDto,
   InstanceResponseDto,
   ListInstancesQueryDto,
-  UpdateInstanceDto,
+  UpdateAppConfigDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
 
 /**
- * Documents the `confirm` query parameter of the endpoints that take an
- * instance down. See {@link InstanceService.setStatus}.
+ * Documents the `confirm` query parameter, which every admin route writing to
+ * an existing instance requires. None of them is safe to aim at the wrong
+ * instance, and none of them has an undo.
  */
 const CONFIRM_QUERY = {
   name: "confirm",
@@ -109,19 +109,120 @@ export class InstanceController {
     return this.instanceService.create(dto);
   }
 
-  @Patch(":name")
+  @Get(":name")
+  @UseGuards(JwtOrBasicAuthGuard)
+  @ApiBearerAuth()
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Get a single instance",
+    description:
+      "The stored record, whatever its status — unlike the manifest from " +
+      "`GET /instances`, which lists the active instances only.",
+    operationId: "getInstance",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiOkResponse({ description: "The instance.", type: InstanceResponseDto })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiUnauthorizedResponse({
+    description:
+      "Authentication required – invalid or missing JWT token or Basic credentials.",
+  })
+  async findOne(@Param("name") name: string): Promise<InstanceResponseDto> {
+    return this.instanceService.findOneOrFail(name);
+  }
+
+  @Post(":name/hibernate")
+  @UseGuards(BasicAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Hibernate an instance",
+    description:
+      "Drops the instance from the deployment manifest, so the deployment " +
+      "triggered by this call tears the instance's cluster resources down. " +
+      "The record and the name are kept, but there is no automated way back " +
+      "in: activating it again provisions an empty instance rather than " +
+      "restoring this one. What is torn down and what the cluster keeps is " +
+      "documented with the infrastructure code.",
+    operationId: "hibernateInstance",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description:
+      "The instance, now inactive. An already hibernated one is returned " +
+      "unchanged and triggers no deployment.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({ description: "Missing or mismatched `confirm`." })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description:
+      "The instance was changed or deleted while the request was in flight.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async hibernate(
+    @Param("name") name: string,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.hibernate(name, confirm);
+  }
+
+  @Post(":name/activate")
+  @UseGuards(BasicAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Activate a hibernated instance",
+    description:
+      "Puts the instance back into the deployment manifest, so the deployment " +
+      "triggered by this call provisions it again. It comes back empty: " +
+      "hibernating destroyed its database and nothing here restores one. " +
+      "`confirm` is required as on every write to an existing instance — " +
+      "aimed at the wrong hibernated name, this brings a system up under it.",
+    operationId: "activateInstance",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description:
+      "The instance, now active. An already active one is returned unchanged " +
+      "and triggers no deployment.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({ description: "Missing or mismatched `confirm`." })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description:
+      "The instance was changed or deleted while the request was in flight.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async activate(
+    @Param("name") name: string,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.activate(name, confirm);
+  }
+
+  @Patch(":name/app-config")
   @UseGuards(BasicAuthGuard)
   @ApiBasicAuth()
   @ApiOperation({
-    summary: "Hibernate or re-activate an instance",
+    summary: "Change an instance's app configuration",
     description:
-      "`inactive` drops the instance from the deployment manifest, so the " +
-      "deployment triggered by this call tears the instance's cluster " +
-      "resources down. The record and the name are kept, but there is no " +
-      "automated way back in: re-activating provisions an empty instance " +
-      "rather than restoring the old one. What is torn down and what the " +
-      "cluster keeps is documented with the infrastructure code.",
-    operationId: "updateInstanceStatus",
+      "Sets the instance's `mode`, its raw `config.json` overrides, or both; " +
+      "a field left out of the body keeps its stored value. The overrides are " +
+      "stored as given and interpreted where they are applied, so a value " +
+      "accepted here can still be refused or ignored by the deployment. " +
+      "`confirm` is required as on every write to an existing instance, and " +
+      "here nothing about the request looks dangerous: a change can stop an " +
+      "instance persisting its data without taking it down, depending on the " +
+      "contents of an override this API does not interpret.",
+    operationId: "updateInstanceAppConfig",
   })
   @ApiParam({ name: "name", description: "The instance name (subdomain)." })
   @ApiQuery(CONFIRM_QUERY)
@@ -129,18 +230,22 @@ export class InstanceController {
     description: "Updated instance.",
     type: InstanceResponseDto,
   })
-  @ApiBadRequestResponse({ description: "Missing or mismatched `confirm`." })
+  @ApiBadRequestResponse({
+    description: "Missing or mismatched `confirm`, or an empty body.",
+  })
   @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description: "The instance was deleted while the request was in flight.",
+  })
   @ApiUnauthorizedResponse({
     description: "Admin Basic auth credentials required.",
   })
-  async updateStatus(
+  async updateAppConfig(
     @Param("name") name: string,
-    @Body() dto: UpdateInstanceDto,
-    @Ip() clientIp: string,
+    @Body() dto: UpdateAppConfigDto,
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
-    return this.instanceService.setStatus(name, dto.status, confirm, clientIp);
+    return this.instanceService.updateAppConfig(name, dto, confirm);
   }
 
   @Delete(":name")
@@ -167,10 +272,9 @@ export class InstanceController {
   })
   async remove(
     @Param("name") name: string,
-    @Ip() clientIp: string,
     @Query("confirm") confirm?: string,
   ): Promise<void> {
-    return this.instanceService.remove(name, confirm, clientIp);
+    return this.instanceService.remove(name, confirm);
   }
 
   @Post("webhook/brevo")
