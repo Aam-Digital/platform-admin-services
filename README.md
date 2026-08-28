@@ -63,6 +63,22 @@ Anything else is an **override**: admin-only, unset by default, stored as
 given and applied on top of the mode. Changed (along with `mode`) 
 through `PATCH /api/v1/instances/:name/app-config`:
 
+```bash
+curl -u "admin:$ADMIN_PASSWORD" -X PATCH \
+  "https://admin.$DOMAIN/api/v1/instances/my-org/app-config?confirm=my-org" \
+  -H 'content-type: application/json' \
+  -d '{"mode":"demo","appConfigOverride":{"webmaster_email":"it@example.org"}}'
+```
+
+What a valid setting is, and which of them the deployment owns and refuses to
+let through, is decided by the [cluster deployment][infra], not here - so an
+accepted value can still be ignored when applied. Never put a secret in an
+override: it ends up in `config.json`, which the browser fetches and any
+caller of `GET /instances` can read.
+`confirm` is required on every call, since a stale-persistence risk can hide inside 
+an override this API does not interpret. Overrides are not settable at creation - that 
+route also takes a user token and serves the Brevo webhook.
+
 ---
 
 ## Setup

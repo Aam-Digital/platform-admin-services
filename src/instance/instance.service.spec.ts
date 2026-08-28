@@ -288,6 +288,11 @@ describe("InstanceService", () => {
         "1.2.3.4",
       );
 
+      // The exact-equality check above already proves appConfigOverride is
+      // left out of the SQL update, so `repo.update` never touches that
+      // column — mocked here, so it can't show the column surviving in a
+      // real row; "should change the mode without touching the overrides"
+      // in instances.e2e-spec.ts does that against a real (SQLite) table.
       expect(repo.update).toHaveBeenCalledWith(
         { name: "my-org" },
         { mode: "demo" },
