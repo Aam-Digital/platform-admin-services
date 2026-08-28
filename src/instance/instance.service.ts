@@ -186,7 +186,6 @@ export class InstanceService implements OnModuleInit {
     name: string,
     status: InstanceStatus,
     confirm: string | undefined,
-    clientIp: string,
   ): Promise<Instance> {
     const instance = await this.findOneOrFail(name);
 
@@ -212,12 +211,10 @@ export class InstanceService implements OnModuleInit {
     const saved = await this.findOneOrFail(name);
 
     // `warn` so that taking an instance down (and putting it back up) reaches
-    // Sentry as an audit trail. The admin password is shared, so the client IP
-    // is the only thing distinguishing one caller from another.
+    // Sentry as an audit trail.
     this.logger.warn("Instance status changed", {
       name: saved.name,
       status: saved.status,
-      clientIp,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {
@@ -248,7 +245,6 @@ export class InstanceService implements OnModuleInit {
     name: string,
     dto: UpdateAppConfigDto,
     confirm: string | undefined,
-    clientIp: string,
   ): Promise<Instance> {
     const instance = await this.findOneOrFail(name);
     this.assertNameConfirmed(name, confirm);
@@ -297,17 +293,15 @@ export class InstanceService implements OnModuleInit {
 
     const saved = await this.findOneOrFail(name);
 
-    // `warn` for the same reason as a status change: the admin password is
-    // shared, so this and the client IP are the audit trail. Logged with the
-    // previous values, because a wrong setting here is silent — the instance
-    // stays up and merely behaves differently.
+    // `warn` for the same reason as a status change, logged with the previous
+    // values because a wrong setting here is silent — the instance stays up
+    // and merely behaves differently.
     this.logger.warn("Instance app config changed", {
       name: saved.name,
       mode: saved.mode,
       previousMode: instance.mode,
       hasOverride: saved.appConfigOverride !== null,
       hadOverride: instance.appConfigOverride !== null,
-      clientIp,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {
@@ -330,11 +324,7 @@ export class InstanceService implements OnModuleInit {
    *
    * @param confirm must repeat `name`.
    */
-  async remove(
-    name: string,
-    confirm: string | undefined,
-    clientIp: string,
-  ): Promise<void> {
+  async remove(name: string, confirm: string | undefined): Promise<void> {
     const instance = await this.findOneOrFail(name);
     this.assertNameConfirmed(name, confirm);
 
@@ -360,7 +350,7 @@ export class InstanceService implements OnModuleInit {
       throw new ConflictException(RACE_MESSAGE(name));
     }
 
-    this.logger.warn("Instance deleted", { name, clientIp });
+    this.logger.warn("Instance deleted", { name });
   }
 
   private async findOneOrFail(name: string): Promise<Instance> {

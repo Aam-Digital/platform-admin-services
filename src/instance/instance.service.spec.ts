@@ -97,7 +97,6 @@ describe("InstanceService", () => {
         "some-org",
         "inactive",
         "some-org",
-        "1.2.3.4",
       );
 
       expect(result.status).toBe("inactive");
@@ -117,7 +116,7 @@ describe("InstanceService", () => {
       });
 
       await expect(
-        service.setStatus("some-org", "inactive", "some-org", "1.2.3.4"),
+        service.setStatus("some-org", "inactive", "some-org"),
       ).rejects.toThrow(ConflictException);
     });
 
@@ -125,10 +124,10 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(active());
 
       await expect(
-        service.setStatus("some-org", "inactive", "other-org", "1.2.3.4"),
+        service.setStatus("some-org", "inactive", "other-org"),
       ).rejects.toThrow(BadRequestException);
       await expect(
-        service.setStatus("some-org", "inactive", undefined, "1.2.3.4"),
+        service.setStatus("some-org", "inactive", undefined),
       ).rejects.toThrow(BadRequestException);
       expect(repo.update).not.toHaveBeenCalled();
     });
@@ -139,12 +138,7 @@ describe("InstanceService", () => {
         status: "active",
       } as Instance);
 
-      const result = await service.setStatus(
-        "some-org",
-        "active",
-        undefined,
-        "1.2.3.4",
-      );
+      const result = await service.setStatus("some-org", "active", undefined);
 
       expect(result.status).toBe("active");
     });
@@ -153,7 +147,7 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.setStatus("no-such-org", "inactive", "no-such-org", "1.2.3.4"),
+        service.setStatus("no-such-org", "inactive", "no-such-org"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -165,7 +159,7 @@ describe("InstanceService", () => {
         status: "inactive",
       } as Instance);
 
-      await service.remove("some-org", "some-org", "1.2.3.4");
+      await service.remove("some-org", "some-org");
 
       // conditional on the instance still being inactive at delete time
       expect(repo.delete).toHaveBeenCalledWith({
@@ -181,9 +175,9 @@ describe("InstanceService", () => {
       } as Instance);
       repo.delete.mockResolvedValue({ affected: 0, raw: {} });
 
-      await expect(
-        service.remove("some-org", "some-org", "1.2.3.4"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.remove("some-org", "some-org")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("should refuse to delete an active instance", async () => {
@@ -192,9 +186,9 @@ describe("InstanceService", () => {
         status: "active",
       } as Instance);
 
-      await expect(
-        service.remove("some-org", "some-org", "1.2.3.4"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.remove("some-org", "some-org")).rejects.toThrow(
+        ConflictException,
+      );
       expect(repo.delete).not.toHaveBeenCalled();
     });
 
@@ -204,12 +198,12 @@ describe("InstanceService", () => {
         status: "inactive",
       } as Instance);
 
-      await expect(
-        service.remove("some-org", undefined, "1.2.3.4"),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.remove("some-org", "other-org", "1.2.3.4"),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.remove("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.remove("some-org", "other-org")).rejects.toThrow(
+        BadRequestException,
+      );
       expect(repo.delete).not.toHaveBeenCalled();
     });
 
@@ -217,7 +211,7 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.remove("no-such-org", "no-such-org", "1.2.3.4"),
+        service.remove("no-such-org", "no-such-org"),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -238,7 +232,6 @@ describe("InstanceService", () => {
         "my-org",
         { mode: "demo" },
         "my-org",
-        "1.2.3.4",
       );
 
       expect(repo.update).toHaveBeenCalledWith(
@@ -259,7 +252,6 @@ describe("InstanceService", () => {
         "my-org",
         { appConfigOverride: override },
         "my-org",
-        "1.2.3.4",
       );
 
       expect(repo.update).toHaveBeenCalledWith(
@@ -281,12 +273,7 @@ describe("InstanceService", () => {
           appConfigOverride: { keep: true },
         } as Instance);
 
-      await service.updateAppConfig(
-        "my-org",
-        { mode: "demo" },
-        "my-org",
-        "1.2.3.4",
-      );
+      await service.updateAppConfig("my-org", { mode: "demo" }, "my-org");
 
       // The exact-equality check above already proves appConfigOverride is
       // left out of the SQL update, so `repo.update` never touches that
@@ -311,7 +298,6 @@ describe("InstanceService", () => {
         "my-org",
         { appConfigOverride: null },
         "my-org",
-        "1.2.3.4",
       );
 
       expect(repo.update).toHaveBeenCalledWith(
@@ -327,7 +313,6 @@ describe("InstanceService", () => {
         "my-org",
         { mode: "standard" },
         "my-org",
-        "1.2.3.4",
       );
 
       expect(result).toBe(existing);
@@ -338,7 +323,7 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(existing);
 
       await expect(
-        service.updateAppConfig("my-org", {}, "my-org", "1.2.3.4"),
+        service.updateAppConfig("my-org", {}, "my-org"),
       ).rejects.toThrow(BadRequestException);
       expect(repo.update).not.toHaveBeenCalled();
     });
@@ -347,19 +332,13 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(existing);
 
       await expect(
-        service.updateAppConfig(
-          "my-org",
-          { mode: "standard" },
-          undefined,
-          "1.2.3.4",
-        ),
+        service.updateAppConfig("my-org", { mode: "standard" }, undefined),
       ).rejects.toThrow(BadRequestException);
       await expect(
         service.updateAppConfig(
           "my-org",
           { appConfigOverride: null },
           "other-org",
-          "1.2.3.4",
         ),
       ).rejects.toThrow(BadRequestException);
       expect(repo.update).not.toHaveBeenCalled();
@@ -369,7 +348,7 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.updateAppConfig("nope", { mode: "demo" }, "nope", "1.2.3.4"),
+        service.updateAppConfig("nope", { mode: "demo" }, "nope"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -378,12 +357,7 @@ describe("InstanceService", () => {
       repo.update.mockResolvedValue({ affected: 0 } as never);
 
       await expect(
-        service.updateAppConfig(
-          "my-org",
-          { mode: "demo" },
-          "my-org",
-          "1.2.3.4",
-        ),
+        service.updateAppConfig("my-org", { mode: "demo" }, "my-org"),
       ).rejects.toThrow(ConflictException);
     });
   });

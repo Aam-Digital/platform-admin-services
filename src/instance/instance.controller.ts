@@ -5,7 +5,6 @@ import {
   Get,
   HttpCode,
   HttpStatus,
-  Ip,
   Param,
   Patch,
   Post,
@@ -138,10 +137,9 @@ export class InstanceController {
   async updateStatus(
     @Param("name") name: string,
     @Body() dto: UpdateInstanceDto,
-    @Ip() clientIp: string,
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
-    return this.instanceService.setStatus(name, dto.status, confirm, clientIp);
+    return this.instanceService.setStatus(name, dto.status, confirm);
   }
 
   @Patch(":name/app-config")
@@ -176,10 +174,9 @@ export class InstanceController {
   async updateAppConfig(
     @Param("name") name: string,
     @Body() dto: UpdateAppConfigDto,
-    @Ip() clientIp: string,
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
-    return this.instanceService.updateAppConfig(name, dto, confirm, clientIp);
+    return this.instanceService.updateAppConfig(name, dto, confirm);
   }
 
   @Delete(":name")
@@ -206,10 +203,9 @@ export class InstanceController {
   })
   async remove(
     @Param("name") name: string,
-    @Ip() clientIp: string,
     @Query("confirm") confirm?: string,
   ): Promise<void> {
-    return this.instanceService.remove(name, confirm, clientIp);
+    return this.instanceService.remove(name, confirm);
   }
 
   @Post("webhook/brevo")
