@@ -647,6 +647,17 @@ describe("Instances (e2e)", () => {
         .expect(400);
     });
 
+    it("should reject a null mode when creating an instance", () => {
+      return request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({
+          name: "null-mode-org",
+          ownerEmail: "a@b.com",
+          mode: null,
+        })
+        .expect(400);
+    });
+
     // The route that creates an instance also takes a user token and serves the
     // Brevo webhook, so the raw overrides must not be reachable there. The
     // global ValidationPipe rejects the unknown property.
@@ -776,6 +787,25 @@ describe("Instances (e2e)", () => {
         .patch("/api/v1/instances/bad-mode-org/app-config?confirm=bad-mode-org")
         .send({ mode: "mock" })
         .expect(400);
+    });
+
+    it("should reject a null mode rather than write it to the row", async () => {
+      await createInstance("null-mode-org");
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/null-mode-org/app-config?confirm=null-mode-org",
+        )
+        .send({ mode: null })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const found = res.body.find((i: any) => i.name === "null-mode-org");
+          expect(found.mode).toBe("standard");
+        });
     });
 
     it("should reject overrides that are not an object", async () => {

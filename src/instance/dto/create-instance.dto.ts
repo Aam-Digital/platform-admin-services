@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   Matches,
+  ValidateIf,
 } from "class-validator";
 import {
   INSTANCE_MODES,
@@ -80,7 +81,9 @@ export class CreateInstanceDto {
     enum: INSTANCE_MODES,
     default: "standard",
   })
-  @IsOptional()
+  // Not @IsOptional(): see the same field on UpdateAppConfigDto for why
+  // `null` must be rejected rather than treated as absent.
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(INSTANCE_MODES)
   mode?: InstanceMode;
 }

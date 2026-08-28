@@ -1,5 +1,5 @@
 import { ApiPropertyOptional } from "@nestjs/swagger";
-import { IsIn, IsObject, IsOptional } from "class-validator";
+import { IsIn, IsObject, IsOptional, ValidateIf } from "class-validator";
 import {
   APP_CONFIG_OVERRIDE_DESCRIPTION,
   INSTANCE_MODES,
@@ -21,7 +21,11 @@ export class UpdateAppConfigDto {
     enum: INSTANCE_MODES,
     example: "demo",
   })
-  @IsOptional()
+  // Not @IsOptional(), which treats `null` the same as an absent field and
+  // would let it through to a non-nullable column: `mode` has no unset state
+  // like `appConfigOverride` does, so `null` here must be rejected, not the
+  // stored value left alone.
+  @ValidateIf((_, value) => value !== undefined)
   @IsIn(INSTANCE_MODES)
   mode?: InstanceMode;
 
