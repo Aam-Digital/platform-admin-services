@@ -55,35 +55,13 @@ the Brevo webhook, and one already claimed by another instance is rejected with
 ### App configuration of an instance
 
 How an instance stores its data is a `mode`, not a set of app settings:
-`standard` is a regular system on its own database, `demo` runs on generated
-data that is not persisted, and `online` is accepted already but not yet mapped
-to an app configuration by the infrastructure
-([aam-cloud-infrastructure#222](https://github.com/Aam-Digital/aam-cloud-infrastructure/issues/222)).
-It is the only app-level choice the normal API offers, settable when creating
-an instance — a named mode rather than the underlying settings, because those
-combine into states that must not be requestable, like a live instance one
-typo away from silently discarding what is entered into it.
+e.g. `standard` is a regular system on its own database, `demo` runs on generated
+data that is not persisted. See the API docs for all available modes.
+These named modes combine into valid overall system states by the infra cluster.
 
-Anything else is an **override** — admin-only, unset by default, stored as
-given and applied on top of the mode. It is the escape hatch for trying a
-setting on one instance without a release of three repositories, changed
-(along with `mode`) through `PATCH /api/v1/instances/:name/app-config`:
-
-```bash
-curl -u "admin:$ADMIN_PASSWORD" -X PATCH \
-  "https://admin.$DOMAIN/api/v1/instances/my-org/app-config?confirm=my-org" \
-  -H 'content-type: application/json' \
-  -d '{"mode":"demo","appConfigOverride":{"webmaster_email":"it@example.org"}}'
-```
-
-What a valid setting is, and which of them the deployment owns and refuses to
-let through, is decided by the [cluster deployment][infra], not here — so an
-accepted value can still be ignored when applied. Never put a secret in an
-override: it ends up in `config.json`, which the browser fetches and any
-caller of `GET /instances` can read. `confirm` is required on every call,
-since a stale-persistence risk can hide inside an override this API does not
-interpret. Overrides are not settable at creation — that route also takes a
-user token and serves the Brevo webhook.
+Anything else is an **override**: admin-only, unset by default, stored as
+given and applied on top of the mode. Changed (along with `mode`) 
+through `PATCH /api/v1/instances/:name/app-config`:
 
 ---
 

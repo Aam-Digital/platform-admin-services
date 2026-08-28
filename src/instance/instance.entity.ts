@@ -24,13 +24,8 @@ export type InstanceStatus = (typeof INSTANCE_STATUSES)[number];
  * app configures it.
  *
  * A named mode instead of the underlying app settings, because those combine
- * into states we do not offer and must not be able to request: `standard`
- * misread as `demo` means a live system stops persisting what is entered into
- * it. The infrastructure translates a mode into the actual app configuration.
- *
- * A const object rather than a plain array of strings, so each mode can carry
- * its own doc comment instead of the meaning of all of them being crammed into
- * one comment above the list.
+ * into states we do not offer. 
+ * The infrastructure translates a mode into the actual app configuration.
  */
 export const InstanceMode = {
   /** A regular system on its own database, persisting what is entered. */
@@ -41,9 +36,7 @@ export const InstanceMode = {
    */
   Demo: "demo",
   /**
-   * Not yet mapped to an app configuration by the infrastructure — see
-   * aam-cloud-infrastructure#222. Accepted and stored here already, same as
-   * `demo` was before its own counterpart landed there.
+   * A standard system that disallows offline-sync on devices.
    */
   Online: "online",
 } as const;
@@ -53,19 +46,16 @@ export type InstanceMode = (typeof InstanceMode)[keyof typeof InstanceMode];
 export const INSTANCE_MODES = Object.values(InstanceMode);
 
 /**
- * Shared with the DTOs that expose `mode` on the public API, so its meaning
- * is defined once rather than retyped — and risking drifting out of sync — in
- * each of them.
+ * API docs shared with all DTOs that expose `mode` on the public API.
+ * Defined once rather than retyped to avoid duplication and inconsistencies.
  */
 export const MODE_DESCRIPTION =
   "How the instance stores its data. `standard` is a regular system on its " +
   "own database, and `demo` runs on generated data that is not persisted, " +
-  "for a system to show rather than to work in. `online` is accepted but " +
-  "not yet mapped to an app configuration by the infrastructure.";
+  "for a system to show rather than to work in.";
 
 /**
- * Shared with the DTOs that expose `appConfigOverride`, for the same reason
- * as {@link MODE_DESCRIPTION}.
+ * API docs shared with all DTOs that expose `appConfigOverride` for consistency.
  */
 export const APP_CONFIG_OVERRIDE_DESCRIPTION =
   "Raw overrides for the app's `config.json`, applied on top of what the " +

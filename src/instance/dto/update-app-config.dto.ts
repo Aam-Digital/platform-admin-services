@@ -32,7 +32,7 @@ export class UpdateAppConfigDto {
     type: "object",
     additionalProperties: true,
     nullable: true,
-    example: { webmaster_email: "it@example.org" },
+    example: { session_type: "online" },
   })
   @IsOptional()
   @IsObject()
