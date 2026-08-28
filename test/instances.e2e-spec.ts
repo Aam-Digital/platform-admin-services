@@ -423,10 +423,11 @@ describe("Instances (e2e)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // PATCH /api/v1/instances/:name  and  DELETE /api/v1/instances/:name
+  // POST /api/v1/instances/:name/hibernate  and  /activate,
+  // GET and DELETE /api/v1/instances/:name
   // ────────────────────────────────────────────────────────────────────
 
-  describe("PATCH & DELETE /api/v1/instances/:name", () => {
+  describe("Instance lifecycle", () => {
     /** Created per test, so no test depends on another one's leftovers. */
     async function createInstance(name: string): Promise<void> {
       await request(app.getHttpServer())
@@ -437,17 +438,36 @@ describe("Instances (e2e)", () => {
 
     async function hibernate(name: string): Promise<void> {
       await request(app.getHttpServer())
-        .patch(`/api/v1/instances/${name}?confirm=${name}`)
-        .send({ status: "inactive" })
+        .post(`/api/v1/instances/${name}/hibernate?confirm=${name}`)
         .expect(200);
     }
+
+    it("should return a single instance whatever its status", async () => {
+      await createInstance("single-org");
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/single-org")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.name).toBe("single-org");
+          expect(res.body.status).toBe("active");
+        });
+
+      // unlike the manifest, this is a record lookup and does not filter
+      await hibernate("single-org");
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/single-org")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.status).toBe("inactive");
+        });
+    });
 
     it("should hibernate an instance when the name is confirmed", async () => {
       await createInstance("hibernate-me");
 
       await request(app.getHttpServer())
-        .patch("/api/v1/instances/hibernate-me?confirm=hibernate-me")
-        .send({ status: "inactive" })
+        .post("/api/v1/instances/hibernate-me/hibernate?confirm=hibernate-me")
         .expect(200)
         .expect((res) => {
           expect(res.body.status).toBe("inactive");
@@ -493,13 +513,11 @@ describe("Instances (e2e)", () => {
       await createInstance("keep-me");
 
       await request(app.getHttpServer())
-        .patch("/api/v1/instances/keep-me")
-        .send({ status: "inactive" })
+        .post("/api/v1/instances/keep-me/hibernate")
         .expect(400);
 
       await request(app.getHttpServer())
-        .patch("/api/v1/instances/keep-me?confirm=other-org")
-        .send({ status: "inactive" })
+        .post("/api/v1/instances/keep-me/hibernate?confirm=other-org")
         .expect(400);
 
       // still in the manifest, so still deployed
@@ -512,26 +530,54 @@ describe("Instances (e2e)", () => {
         });
     });
 
-    it("should re-activate a hibernated instance", async () => {
+    it("should activate a hibernated instance when the name is confirmed", async () => {
       await createInstance("back-again");
       await hibernate("back-again");
 
       await request(app.getHttpServer())
-        .patch("/api/v1/instances/back-again")
-        .send({ status: "active" })
+        .post("/api/v1/instances/back-again/activate?confirm=back-again")
         .expect(200)
         .expect((res) => {
           expect(res.body.status).toBe("active");
         });
     });
 
-    it("should reject an unknown status", async () => {
-      await createInstance("bad-status");
+    it("should reject activating without a matching confirmation", async () => {
+      // Activating is confirmed too: aimed at the wrong hibernated instance it
+      // brings an empty system up under that name.
+      await createInstance("stay-down");
+      await hibernate("stay-down");
 
-      return request(app.getHttpServer())
-        .patch("/api/v1/instances/bad-status?confirm=bad-status")
-        .send({ status: "deleted" })
+      await request(app.getHttpServer())
+        .post("/api/v1/instances/stay-down/activate")
         .expect(400);
+
+      await request(app.getHttpServer())
+        .post("/api/v1/instances/stay-down/activate?confirm=other-org")
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances/stay-down")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.status).toBe("inactive");
+        });
+    });
+
+    it("should treat a transition to the current status as a confirmed no-op", async () => {
+      await createInstance("already-up");
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .post("/api/v1/instances/already-up/activate?confirm=already-up")
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.status).toBe("active");
+        });
+
+      // the dispatched workflow deploys every instance of the stack, so a
+      // no-op call must not trigger one
+      expect(mockDispatch).not.toHaveBeenCalled();
     });
 
     it("should refuse to delete an active instance", async () => {
@@ -580,18 +626,25 @@ describe("Instances (e2e)", () => {
 
     it("should return 404 for an unknown instance", async () => {
       await request(app.getHttpServer())
+        .get("/api/v1/instances/no-such-org")
+        .expect(404);
+
+      await request(app.getHttpServer())
         .delete("/api/v1/instances/no-such-org?confirm=no-such-org")
         .expect(404);
 
       await request(app.getHttpServer())
-        .patch("/api/v1/instances/no-such-org?confirm=no-such-org")
-        .send({ status: "inactive" })
+        .post("/api/v1/instances/no-such-org/hibernate?confirm=no-such-org")
+        .expect(404);
+
+      await request(app.getHttpServer())
+        .post("/api/v1/instances/no-such-org/activate?confirm=no-such-org")
         .expect(404);
     });
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // GET /api/v1/instances/check/:name
+  // PATCH /api/v1/instances/:name/app-config
   // ────────────────────────────────────────────────────────────────────
 
   describe("PATCH /api/v1/instances/:name/app-config", () => {
@@ -871,6 +924,10 @@ describe("Instances (e2e)", () => {
       await request(app.getHttpServer()).get("/api/v1/instances").expect(200);
     });
   });
+
+  // ────────────────────────────────────────────────────────────────────
+  // GET /api/v1/instances/check/:name
+  // ────────────────────────────────────────────────────────────────────
 
   describe("GET /api/v1/instances/check/:name", () => {
     it("should report a taken name as unavailable", () => {

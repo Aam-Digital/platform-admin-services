@@ -82,7 +82,7 @@ describe("InstanceService", () => {
     });
   });
 
-  describe("setStatus", () => {
+  describe("hibernate / activate", () => {
     const active = () => ({ name: "some-org", status: "active" }) as Instance;
     const inactive = () =>
       ({ name: "some-org", status: "inactive" }) as Instance;
@@ -93,11 +93,7 @@ describe("InstanceService", () => {
         status: "inactive",
       } as Instance);
 
-      const result = await service.setStatus(
-        "some-org",
-        "inactive",
-        "some-org",
-      );
+      const result = await service.hibernate("some-org", "some-org");
 
       expect(result.status).toBe("inactive");
       // guarded by the status that was read, so a concurrent change loses
@@ -105,6 +101,17 @@ describe("InstanceService", () => {
         { name: "some-org", status: "active" },
         { status: "inactive" },
       );
+    });
+
+    it("should activate a confirmed instance", async () => {
+      repo.findOneBy.mockResolvedValueOnce(inactive()).mockResolvedValue({
+        name: "some-org",
+        status: "active",
+      } as Instance);
+
+      const result = await service.activate("some-org", "some-org");
+
+      expect(result.status).toBe("active");
     });
 
     it("should report a conflict when the status changed under the request", async () => {
@@ -115,39 +122,52 @@ describe("InstanceService", () => {
         generatedMaps: [],
       });
 
-      await expect(
-        service.setStatus("some-org", "inactive", "some-org"),
-      ).rejects.toThrow(ConflictException);
+      await expect(service.hibernate("some-org", "some-org")).rejects.toThrow(
+        ConflictException,
+      );
     });
 
     it("should reject hibernating without a matching confirmation", async () => {
       repo.findOneBy.mockResolvedValue(active());
 
-      await expect(
-        service.setStatus("some-org", "inactive", "other-org"),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.setStatus("some-org", "inactive", undefined),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.hibernate("some-org", "other-org")).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.hibernate("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
       expect(repo.update).not.toHaveBeenCalled();
     });
 
-    it("should re-activate without a confirmation", async () => {
-      repo.findOneBy.mockResolvedValueOnce(inactive()).mockResolvedValue({
-        name: "some-org",
-        status: "active",
-      } as Instance);
+    it("should reject activating without a matching confirmation", async () => {
+      // Activating is not the harmless direction it looks like: aimed at the
+      // wrong hibernated instance it brings an empty system up under that name.
+      repo.findOneBy.mockResolvedValue(inactive());
 
-      const result = await service.setStatus("some-org", "active", undefined);
+      await expect(service.activate("some-org", "other-org")).rejects.toThrow(
+        BadRequestException,
+      );
+      await expect(service.activate("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(repo.update).not.toHaveBeenCalled();
+    });
 
-      expect(result.status).toBe("active");
+    it("should require confirmation even when the status is already the requested one", async () => {
+      // The no-op shortcut must not become a way past the check, or a script
+      // pointed at the wrong instance gets a 200 for it.
+      repo.findOneBy.mockResolvedValue(active());
+
+      await expect(service.activate("some-org", undefined)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it("should throw NotFoundException for an unknown instance", async () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.setStatus("no-such-org", "inactive", "no-such-org"),
+        service.hibernate("no-such-org", "no-such-org"),
       ).rejects.toThrow(NotFoundException);
     });
   });

@@ -18,21 +18,21 @@ endpoints, their authentication and the effect of each operation.
 Taking a system down means taking it out of the manifest, and the two ways to do
 that differ in what is kept. **Hibernating** it keeps its record and its name.
 **Deleting** it frees the name, is only allowed once it is already hibernated,
-and triggers no deployment — it is out of the manifest already. Both calls take
-the admin password only, and both require `confirm` to repeat the instance name —
-valid credentials do not establish that the caller meant this particular
-instance.
+and triggers no deployment — it is out of the manifest already.
 
-Neither call erases data and neither is reversible in practice: re-activating a
+Neither call erases data and neither is reversible in practice: activating a
 hibernated instance provisions an empty one rather than restoring it. What the
 deployment tears down, what the cluster keeps, and how to purge or restore it
 belong to the [cluster deployment][infra] and are documented there.
 
 ```bash
-# hibernate (`{"status":"active"}` puts it back)
-curl -u "admin:$ADMIN_PASSWORD" -X PATCH \
-  "https://admin.$DOMAIN/api/v1/instances/my-org?confirm=my-org" \
-  -H 'content-type: application/json' -d '{"status":"inactive"}'
+# hibernate
+curl -u "admin:$ADMIN_PASSWORD" -X POST \
+  "https://admin.$DOMAIN/api/v1/instances/my-org/hibernate?confirm=my-org"
+
+# put it back — as a new, empty system under the same name
+curl -u "admin:$ADMIN_PASSWORD" -X POST \
+  "https://admin.$DOMAIN/api/v1/instances/my-org/activate?confirm=my-org"
 
 # delete the record of a hibernated instance
 curl -u "admin:$ADMIN_PASSWORD" -X DELETE \
@@ -60,24 +60,28 @@ data that is not persisted. See the API docs for all available modes.
 These named modes combine into valid overall system states by the infra cluster.
 
 Anything else is an **override**: admin-only, unset by default, stored as
-given and applied on top of the mode. Changed (along with `mode`) 
-through `PATCH /api/v1/instances/:name/app-config`:
-
-```bash
-curl -u "admin:$ADMIN_PASSWORD" -X PATCH \
-  "https://admin.$DOMAIN/api/v1/instances/my-org/app-config?confirm=my-org" \
-  -H 'content-type: application/json' \
-  -d '{"mode":"demo","appConfigOverride":{"webmaster_email":"it@example.org"}}'
-```
+given and applied on top of the mode. Changed (along with `mode`)
+through `PATCH /api/v1/instances/:name/app-config`.
 
 What a valid setting is, and which of them the deployment owns and refuses to
 let through, is decided by the [cluster deployment][infra], not here - so an
 accepted value can still be ignored when applied. Never put a secret in an
 override: it ends up in `config.json`, which the browser fetches and any
 caller of `GET /instances` can read.
-`confirm` is required on every call, since a stale-persistence risk can hide inside 
-an override this API does not interpret. Overrides are not settable at creation - that 
-route also takes a user token and serves the Brevo webhook.
+Overrides are not settable at creation - that route also takes a user token and
+serves the Brevo webhook. Nothing about a call here looks dangerous, which is
+part of why `confirm` applies to it too: whether a change stops an instance
+persisting its data can hide inside an override this API does not interpret.
+
+### Confirming the target
+
+Every admin route that writes to an existing instance — `hibernate`, `activate`,
+`app-config`, `DELETE` — requires `?confirm=<name>` repeating the name from the
+path, and takes the admin password only. Valid credentials do not establish that
+the caller meant this particular instance, and none of these calls has an undo:
+a mistyped subdomain or a script pointed at the wrong stack is the failure the
+parameter is there to catch. It is required even when the call turns out to
+change nothing, so the no-op case cannot become a way past the check.
 
 ---
 

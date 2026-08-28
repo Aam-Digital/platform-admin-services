@@ -175,23 +175,46 @@ export class InstanceService implements OnModuleInit {
   }
 
   /**
-   * Activates or hibernates an instance. Hibernating removes it from the
-   * manifest, so the deployment triggered here destroys its namespace, its
-   * Keycloak realm and its database volume claim; the record and the name stay
-   * reserved, and the underlying volume is retained by the cluster.
+   * Hibernates an instance: removes it from the manifest, so the deployment
+   * triggered here destroys its namespace, its Keycloak realm and its database
+   * volume claim. The record and the name stay reserved, and the underlying
+   * volume is retained by the cluster.
    *
-   * @param confirm must repeat `name` when hibernating.
+   * @param confirm must repeat `name`.
    */
-  async setStatus(
+  async hibernate(
+    name: string,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    return this.setStatus(name, "inactive", confirm);
+  }
+
+  /**
+   * Puts a hibernated instance back into the manifest, so the deployment
+   * triggered here provisions it again — empty, since hibernating destroyed its
+   * database and nothing here restores one.
+   *
+   * @param confirm must repeat `name`. Required as when hibernating: aimed at
+   *   the wrong hibernated instance this brings a system up under that name.
+   */
+  async activate(name: string, confirm: string | undefined): Promise<Instance> {
+    return this.setStatus(name, "active", confirm);
+  }
+
+  /**
+   * The single write behind {@link hibernate} and {@link activate}, private
+   * because the API names the transition instead of taking a status: a value of
+   * `inactive` says nothing about the teardown it causes, and each direction
+   * has its own documented consequences.
+   */
+  private async setStatus(
     name: string,
     status: InstanceStatus,
     confirm: string | undefined,
   ): Promise<Instance> {
     const instance = await this.findOneOrFail(name);
 
-    if (status === "inactive") {
-      this.assertNameConfirmed(name, confirm);
-    }
+    this.assertNameConfirmed(name, confirm);
 
     if (instance.status === status) {
       return instance;
@@ -334,8 +357,7 @@ export class InstanceService implements OnModuleInit {
     if (instance.status !== "inactive") {
       throw new ConflictException(
         `Instance "${name}" is still active. Hibernate it first ` +
-          `(PATCH /instances/${name}?confirm=${name} with { "status": "inactive" }), ` +
-          `then delete it.`,
+          `(POST /instances/${name}/hibernate?confirm=${name}), then delete it.`,
       );
     }
 
@@ -353,7 +375,12 @@ export class InstanceService implements OnModuleInit {
     this.logger.warn("Instance deleted", { name });
   }
 
-  private async findOneOrFail(name: string): Promise<Instance> {
+  /**
+   * Public because `GET /instances/:name` is exactly this: a record lookup that
+   * 404s, whatever the instance's status — unlike {@link findAll}, which
+   * defaults to the manifest.
+   */
+  async findOneOrFail(name: string): Promise<Instance> {
     const instance = await this.instanceRepo.findOneBy({ name });
     if (!instance) {
       throw new NotFoundException(`Instance "${name}" does not exist.`);
