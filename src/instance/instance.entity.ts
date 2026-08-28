@@ -24,7 +24,7 @@ export type InstanceStatus = (typeof INSTANCE_STATUSES)[number];
  * app configures it.
  *
  * A named mode instead of the underlying app settings, because those combine
- * into states we do not offer. 
+ * into states we do not offer.
  * The infrastructure translates a mode into the actual app configuration.
  */
 export const InstanceMode = {
