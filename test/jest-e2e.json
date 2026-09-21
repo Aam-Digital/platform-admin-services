@@ -10,6 +10,6 @@
     "^.+\\.(t|j)s$": "ts-jest"
   },
   "transformIgnorePatterns": [
-    "node_modules/(?!@octokit|before-after-hook|universal-user-agent|universal-github-app-jwt|is-plain-object|deprecation)"
+    "node_modules/(?!@octokit|before-after-hook|universal-user-agent|universal-github-app-jwt|is-plain-object|deprecation|content-type)"
   ]
 }
