@@ -71,6 +71,11 @@
     "typescript": "^6.0.3",
     "typescript-eslint": "^8.70.0"
   },
+  "overrides": {
+    "typeorm": {
+      "better-sqlite3": "$better-sqlite3"
+    }
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
