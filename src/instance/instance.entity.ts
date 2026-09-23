@@ -84,7 +84,15 @@ export const STORAGE_LIMIT_DESCRIPTION =
   'number of Mi, Gi or Ti (e.g. "5Gi"). The underlying volume can be grown ' +
   "but never shrunk, so raising this is one-way — the infrastructure decides " +
   "how, and applying a lower value than what is already provisioned has no " +
-  "effect there.";
+  "effect there. Capped at a maximum configured for the deployment.";
+
+/**
+ * Default for the `MAX_STORAGE_LIMIT` env var, the largest `storageLimit`
+ * accepted. Because the limit only grows, a typo cannot be taken back, so this
+ * is kept close to what an instance realistically needs rather than to what
+ * the infrastructure could provide.
+ */
+export const DEFAULT_MAX_STORAGE_LIMIT = "100Gi";
 
 const STORAGE_LIMIT_UNIT_BYTES = { Mi: 2 ** 20, Gi: 2 ** 30, Ti: 2 ** 40 };
 

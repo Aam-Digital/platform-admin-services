@@ -3,10 +3,10 @@ import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
-import { ConfigModule } from "@nestjs/config";
+import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { Instance } from "./instance.entity";
 import { InstanceService } from "./instance.service";
 
@@ -383,73 +383,89 @@ describe("InstanceService", () => {
   });
 
   describe("updateStorage", () => {
-    const unset = { name: "my-org", storageLimit: null } as Instance;
-    const withLimit = {
-      name: "my-org",
-      storageLimit: "1Gi",
-    } as Instance;
+    function givenStored(storageLimit: string | null): Instance {
+      const instance = { name: "my-org", storageLimit } as Instance;
+      repo.findOneBy.mockResolvedValue(instance);
+      return instance;
+    }
 
-    it("should set a storage limit from unset", async () => {
-      const reread = { ...unset, storageLimit: "5Gi" } as Instance;
-      repo.findOneBy.mockResolvedValueOnce(unset).mockResolvedValueOnce(reread);
+    it.each([
+      // stored, requested
+      [null, "5Gi"],
+      ["1Gi", "5Gi"],
+      [null, "100Gi"], // exactly the default maximum
+    ])(
+      "should write %p → %p, conditional on the stored value",
+      async (stored, requested) => {
+        givenStored(stored);
 
-      const result = await service.updateStorage("my-org", "5Gi", "my-org");
+        await service.updateStorage("my-org", requested, "my-org");
 
-      expect(repo.update).toHaveBeenCalledWith(
-        { name: "my-org" },
-        { storageLimit: "5Gi" },
-      );
-      // the re-read row, not the pre-update one
-      expect(result).toBe(reread);
-    });
+        expect(repo.update).toHaveBeenCalledWith(
+          { name: "my-org", storageLimit: stored ?? IsNull() },
+          { storageLimit: requested },
+        );
+      },
+    );
 
-    it("should raise an already-set storage limit", async () => {
-      const reread = { ...withLimit, storageLimit: "5Gi" } as Instance;
+    it("should return the re-read row, not the pre-update one", async () => {
+      const reread = { name: "my-org", storageLimit: "5Gi" } as Instance;
+      // the first read is the stored row, the second the re-read after writing
       repo.findOneBy
-        .mockResolvedValueOnce(withLimit)
+        .mockResolvedValueOnce({
+          name: "my-org",
+          storageLimit: null,
+        } as Instance)
         .mockResolvedValueOnce(reread);
 
       const result = await service.updateStorage("my-org", "5Gi", "my-org");
 
-      expect(repo.update).toHaveBeenCalledWith(
-        { name: "my-org" },
-        { storageLimit: "5Gi" },
-      );
       expect(result).toBe(reread);
     });
 
-    it("should not deploy for a value equal in bytes, even in a different unit", async () => {
-      repo.findOneBy.mockResolvedValue(withLimit);
+    it.each(["1Gi", "1024Mi"])(
+      "should not deploy for %p when 1Gi is stored",
+      async (requested) => {
+        const stored = givenStored("1Gi");
 
-      const result = await service.updateStorage("my-org", "1024Mi", "my-org");
+        const result = await service.updateStorage(
+          "my-org",
+          requested,
+          "my-org",
+        );
 
-      expect(result).toBe(withLimit);
-      expect(repo.update).not.toHaveBeenCalled();
-    });
+        expect(result).toBe(stored);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
 
-    it("should reject a smaller storage limit", async () => {
-      repo.findOneBy.mockResolvedValue({
-        ...withLimit,
-        storageLimit: "5Gi",
-      } as Instance);
+    it.each([
+      // stored, requested
+      ["5Gi", "1Gi"], // smaller
+      ["5Gi", "4096Mi"], // smaller, in another unit
+      [null, "101Gi"], // above the maximum
+      [null, "102401Mi"],
+      [null, "1Ti"],
+    ])("should reject %p → %p", async (stored, requested) => {
+      givenStored(stored);
 
       await expect(
-        service.updateStorage("my-org", "1Gi", "my-org"),
+        service.updateStorage("my-org", requested, "my-org"),
       ).rejects.toThrow(BadRequestException);
       expect(repo.update).not.toHaveBeenCalled();
     });
 
-    it("should require confirm to repeat the name", async () => {
-      repo.findOneBy.mockResolvedValue(unset);
+    it.each([undefined, "other-org"])(
+      "should reject confirm=%p",
+      async (confirm) => {
+        givenStored(null);
 
-      await expect(
-        service.updateStorage("my-org", "5Gi", undefined),
-      ).rejects.toThrow(BadRequestException);
-      await expect(
-        service.updateStorage("my-org", "5Gi", "other-org"),
-      ).rejects.toThrow(BadRequestException);
-      expect(repo.update).not.toHaveBeenCalled();
-    });
+        await expect(
+          service.updateStorage("my-org", "5Gi", confirm),
+        ).rejects.toThrow(BadRequestException);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
 
     it("should throw NotFoundException for an unknown instance", async () => {
       repo.findOneBy.mockResolvedValue(null);
@@ -459,13 +475,33 @@ describe("InstanceService", () => {
       ).rejects.toThrow(NotFoundException);
     });
 
-    it("should throw ConflictException when the row went away", async () => {
-      repo.findOneBy.mockResolvedValue(unset);
+    it("should throw ConflictException when the row changed or went away", async () => {
+      givenStored(null);
       repo.update.mockResolvedValue({ affected: 0 } as never);
 
       await expect(
         service.updateStorage("my-org", "5Gi", "my-org"),
       ).rejects.toThrow(ConflictException);
+    });
+
+    describe("MAX_STORAGE_LIMIT", () => {
+      const withMax = (max: string) =>
+        new InstanceService(
+          repo,
+          new ConfigService({ INFRA_STACK: "test", MAX_STORAGE_LIMIT: max }),
+        );
+
+      it("should apply a configured maximum", async () => {
+        givenStored(null);
+
+        await expect(
+          withMax("10Gi").updateStorage("my-org", "11Gi", "my-org"),
+        ).rejects.toThrow(BadRequestException);
+      });
+
+      it("should refuse to start with a malformed value", () => {
+        expect(() => withMax("10GB")).toThrow("MAX_STORAGE_LIMIT");
+      });
     });
   });
 

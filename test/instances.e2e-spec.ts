@@ -953,6 +953,7 @@ describe("Instances (e2e)", () => {
 
     it("should set a storage limit and round-trip it", async () => {
       await createInstance("storage-org");
+      mockDispatch.mockClear();
 
       await request(app.getHttpServer())
         .patch("/api/v1/instances/storage-org/storage?confirm=storage-org")
@@ -961,6 +962,9 @@ describe("Instances (e2e)", () => {
         .expect((res) => {
           expect(res.body.storageLimit).toBe("5Gi");
         });
+
+      await new Promise(setImmediate);
+      expect(mockDispatch).toHaveBeenCalledTimes(1);
 
       await request(app.getHttpServer())
         .get("/api/v1/instances")
@@ -991,43 +995,38 @@ describe("Instances (e2e)", () => {
         });
     });
 
-    it("should reject a value smaller than what is stored", async () => {
-      await createInstance("storage-shrink-org");
-      await request(app.getHttpServer())
-        .patch(
-          "/api/v1/instances/storage-shrink-org/storage?confirm=storage-shrink-org",
-        )
-        .send({ storageLimit: "5Gi" })
-        .expect(200);
+    it.each([
+      { label: "shrink", stored: "5Gi", requested: "1Gi" },
+      { label: "malformed", stored: null, requested: "5GB" },
+      { label: "above-max", stored: null, requested: "101Gi" },
+      { label: "too-long", stored: null, requested: "123456789012345Gi" },
+    ])(
+      "should reject $requested when $stored is stored, keeping $stored",
+      async ({ label, stored, requested }) => {
+        const name = `storage-${label}-org`;
+        const url = `/api/v1/instances/${name}/storage?confirm=${name}`;
+        await createInstance(name);
+        if (stored !== null) {
+          await request(app.getHttpServer())
+            .patch(url)
+            .send({ storageLimit: stored })
+            .expect(200);
+        }
 
-      await request(app.getHttpServer())
-        .patch(
-          "/api/v1/instances/storage-shrink-org/storage?confirm=storage-shrink-org",
-        )
-        .send({ storageLimit: "1Gi" })
-        .expect(400);
+        await request(app.getHttpServer())
+          .patch(url)
+          .send({ storageLimit: requested })
+          .expect(400);
 
-      await request(app.getHttpServer())
-        .get("/api/v1/instances")
-        .expect(200)
-        .expect((res) => {
-          const found = res.body.find(
-            (i: any) => i.name === "storage-shrink-org",
-          );
-          expect(found.storageLimit).toBe("5Gi");
-        });
-    });
-
-    it("should reject a malformed value", async () => {
-      await createInstance("storage-bad-org");
-
-      return request(app.getHttpServer())
-        .patch(
-          "/api/v1/instances/storage-bad-org/storage?confirm=storage-bad-org",
-        )
-        .send({ storageLimit: "5GB" })
-        .expect(400);
-    });
+        await request(app.getHttpServer())
+          .get("/api/v1/instances")
+          .expect(200)
+          .expect((res) => {
+            const found = res.body.find((i: any) => i.name === name);
+            expect(found.storageLimit).toBe(stored);
+          });
+      },
+    );
 
     it("should require confirm even for a harmless change", async () => {
       await createInstance("storage-confirm-org");
