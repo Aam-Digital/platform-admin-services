@@ -6,6 +6,7 @@ import {
   InstanceMode,
   InstanceStatus,
   MODE_DESCRIPTION,
+  STORAGE_LIMIT_DESCRIPTION,
 } from "../instance.entity";
 
 export class InstanceResponseDto {
@@ -46,4 +47,13 @@ export class InstanceResponseDto {
     example: null,
   })
   appConfigOverride: Record<string, unknown> | null;
+
+  @ApiProperty({
+    description:
+      `${STORAGE_LIMIT_DESCRIPTION} \`null\` when unset — the normal case, ` +
+      "where the infrastructure's own default applies.",
+    nullable: true,
+    example: null,
+  })
+  storageLimit: string | null;
 }

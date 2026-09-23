@@ -926,6 +926,159 @@ describe("Instances (e2e)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
+  // PATCH /api/v1/instances/:name/storage
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("PATCH /api/v1/instances/:name/storage", () => {
+    async function createInstance(name: string): Promise<void> {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name, ownerEmail: `${name}@example.com` })
+        .expect(201);
+    }
+
+    it("should default a new instance to no storage limit", async () => {
+      await createInstance("storage-default-org");
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const created = res.body.find(
+            (i: any) => i.name === "storage-default-org",
+          );
+          expect(created.storageLimit).toBeNull();
+        });
+    });
+
+    it("should set a storage limit and round-trip it", async () => {
+      await createInstance("storage-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/storage-org/storage?confirm=storage-org")
+        .send({ storageLimit: "5Gi" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.storageLimit).toBe("5Gi");
+        });
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const found = res.body.find((i: any) => i.name === "storage-org");
+          expect(found.storageLimit).toBe("5Gi");
+        });
+    });
+
+    it("should raise an already-set storage limit", async () => {
+      await createInstance("storage-raise-org");
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-raise-org/storage?confirm=storage-raise-org",
+        )
+        .send({ storageLimit: "3Gi" })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-raise-org/storage?confirm=storage-raise-org",
+        )
+        .send({ storageLimit: "10Gi" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.storageLimit).toBe("10Gi");
+        });
+    });
+
+    it("should reject a value smaller than what is stored", async () => {
+      await createInstance("storage-shrink-org");
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-shrink-org/storage?confirm=storage-shrink-org",
+        )
+        .send({ storageLimit: "5Gi" })
+        .expect(200);
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-shrink-org/storage?confirm=storage-shrink-org",
+        )
+        .send({ storageLimit: "1Gi" })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200)
+        .expect((res) => {
+          const found = res.body.find(
+            (i: any) => i.name === "storage-shrink-org",
+          );
+          expect(found.storageLimit).toBe("5Gi");
+        });
+    });
+
+    it("should reject a malformed value", async () => {
+      await createInstance("storage-bad-org");
+
+      return request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-bad-org/storage?confirm=storage-bad-org",
+        )
+        .send({ storageLimit: "5GB" })
+        .expect(400);
+    });
+
+    it("should require confirm even for a harmless change", async () => {
+      await createInstance("storage-confirm-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/storage-confirm-org/storage")
+        .send({ storageLimit: "5Gi" })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-confirm-org/storage?confirm=other-org",
+        )
+        .send({ storageLimit: "5Gi" })
+        .expect(400);
+    });
+
+    it("should 404 for an unknown instance", () => {
+      return request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/no-such-storage-org/storage?confirm=no-such-storage-org",
+        )
+        .send({ storageLimit: "5Gi" })
+        .expect(404);
+    });
+
+    it("should not deploy for a value equal to what is stored, even in a different unit", async () => {
+      await createInstance("storage-noop-org");
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-noop-org/storage?confirm=storage-noop-org",
+        )
+        .send({ storageLimit: "1Gi" })
+        .expect(200);
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/storage-noop-org/storage?confirm=storage-noop-org",
+        )
+        .send({ storageLimit: "1024Mi" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.storageLimit).toBe("1Gi");
+        });
+
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
   // GET /api/v1/instances/check/:name
   // ────────────────────────────────────────────────────────────────────
 

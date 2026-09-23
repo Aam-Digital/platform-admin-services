@@ -382,6 +382,93 @@ describe("InstanceService", () => {
     });
   });
 
+  describe("updateStorage", () => {
+    const unset = { name: "my-org", storageLimit: null } as Instance;
+    const withLimit = {
+      name: "my-org",
+      storageLimit: "1Gi",
+    } as Instance;
+
+    it("should set a storage limit from unset", async () => {
+      const reread = { ...unset, storageLimit: "5Gi" } as Instance;
+      repo.findOneBy.mockResolvedValueOnce(unset).mockResolvedValueOnce(reread);
+
+      const result = await service.updateStorage("my-org", "5Gi", "my-org");
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { storageLimit: "5Gi" },
+      );
+      // the re-read row, not the pre-update one
+      expect(result).toBe(reread);
+    });
+
+    it("should raise an already-set storage limit", async () => {
+      const reread = { ...withLimit, storageLimit: "5Gi" } as Instance;
+      repo.findOneBy
+        .mockResolvedValueOnce(withLimit)
+        .mockResolvedValueOnce(reread);
+
+      const result = await service.updateStorage("my-org", "5Gi", "my-org");
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { storageLimit: "5Gi" },
+      );
+      expect(result).toBe(reread);
+    });
+
+    it("should not deploy for a value equal in bytes, even in a different unit", async () => {
+      repo.findOneBy.mockResolvedValue(withLimit);
+
+      const result = await service.updateStorage("my-org", "1024Mi", "my-org");
+
+      expect(result).toBe(withLimit);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("should reject a smaller storage limit", async () => {
+      repo.findOneBy.mockResolvedValue({
+        ...withLimit,
+        storageLimit: "5Gi",
+      } as Instance);
+
+      await expect(
+        service.updateStorage("my-org", "1Gi", "my-org"),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("should require confirm to repeat the name", async () => {
+      repo.findOneBy.mockResolvedValue(unset);
+
+      await expect(
+        service.updateStorage("my-org", "5Gi", undefined),
+      ).rejects.toThrow(BadRequestException);
+      await expect(
+        service.updateStorage("my-org", "5Gi", "other-org"),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it("should throw NotFoundException for an unknown instance", async () => {
+      repo.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.updateStorage("nope", "5Gi", "nope"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ConflictException when the row went away", async () => {
+      repo.findOneBy.mockResolvedValue(unset);
+      repo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await expect(
+        service.updateStorage("my-org", "5Gi", "my-org"),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe("create", () => {
     it("should create a new instance", async () => {
       const dto = { name: "new-org", ownerEmail: "a@b.com" };

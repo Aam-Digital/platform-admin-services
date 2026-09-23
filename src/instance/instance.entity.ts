@@ -64,6 +64,50 @@ export const APP_CONFIG_OVERRIDE_DESCRIPTION =
   "is decided by the infrastructure, so a value accepted here can still be " +
   "ignored when it is applied. `config.json` is fetched by the browser.";
 
+/**
+ * A Kubernetes quantity in binary units, restricted to a whole number of Mi,
+ * Gi or Ti — the granularity the infrastructure actually provisions in, and
+ * narrow enough that comparing two values is exact integer arithmetic rather
+ * than general quantity parsing.
+ */
+export const STORAGE_LIMIT_PATTERN = /^([1-9][0-9]*)(Mi|Gi|Ti)$/;
+
+/**
+ * API docs shared with all DTOs that expose `storageLimit` for consistency.
+ *
+ * Named for where this is going rather than what it does today: the only
+ * consumer right now is the CouchDB volume, but it is meant to grow into a
+ * limit on the instance's storage as a whole.
+ */
+export const STORAGE_LIMIT_DESCRIPTION =
+  "A floor on the storage the deployment gives the instance, as a whole " +
+  'number of Mi, Gi or Ti (e.g. "5Gi"). The underlying volume can be grown ' +
+  "but never shrunk, so raising this is one-way — the infrastructure decides " +
+  "how, and applying a lower value than what is already provisioned has no " +
+  "effect there.";
+
+const STORAGE_LIMIT_UNIT_BYTES = { Mi: 2 ** 20, Gi: 2 ** 30, Ti: 2 ** 40 };
+
+/**
+ * Bytes represented by a `STORAGE_LIMIT_PATTERN` value, so two quantities in
+ * different units (e.g. "1024Mi" and "1Gi") compare equal.
+ *
+ * Throws on a value that does not match — callers are expected to validate
+ * with `STORAGE_LIMIT_PATTERN` first (the DTO does, via `@Matches`), so this
+ * is a programming error rather than user input reaching here unchecked.
+ */
+export function parseStorageLimitBytes(value: string): number {
+  const match = STORAGE_LIMIT_PATTERN.exec(value);
+  if (!match) {
+    throw new Error(`"${value}" does not match STORAGE_LIMIT_PATTERN`);
+  }
+  const [, digits, unit] = match;
+  return (
+    Number(digits) *
+    STORAGE_LIMIT_UNIT_BYTES[unit as keyof typeof STORAGE_LIMIT_UNIT_BYTES]
+  );
+}
+
 @Entity("instances")
 // Any other value reads as "not active" and therefore as "destroy this
 // instance", so it must not be storable. Declared here as well as in the
@@ -124,6 +168,23 @@ export class Instance {
    */
   @Column({ name: "app_config_override", type: "simple-json", nullable: true })
   appConfigOverride: Record<string, unknown> | null;
+
+  /**
+   * A floor on the instance's storage, as a `STORAGE_LIMIT_PATTERN` value.
+   * `null` — the normal case — leaves the infrastructure's own default in
+   * place.
+   *
+   * Grows only: see `STORAGE_LIMIT_DESCRIPTION`. Nothing here enforces that on
+   * its own; `InstanceService.updateStorage` is the only writer and is what
+   * rejects a smaller value.
+   */
+  @Column({
+    name: "storage_limit",
+    type: "varchar",
+    length: 16,
+    nullable: true,
+  })
+  storageLimit: string | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;

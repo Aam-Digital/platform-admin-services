@@ -17,7 +17,11 @@ import {
   type InstanceStatusFilter,
 } from "./dto";
 import { INSTANCE_NAME_PATTERN } from "./dto/create-instance.dto";
-import { Instance, InstanceStatus } from "./instance.entity";
+import {
+  Instance,
+  InstanceStatus,
+  parseStorageLimitBytes,
+} from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 
 /**
@@ -45,6 +49,7 @@ const RESERVED_NAMES = new Set([
   "preview",
   "test",
   "status",
+  "cluster",
 ]);
 
 /**
@@ -325,6 +330,69 @@ export class InstanceService implements OnModuleInit {
       previousMode: instance.mode,
       hasOverride: saved.appConfigOverride !== null,
       hadOverride: instance.appConfigOverride !== null,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
+   * Raises an instance's storage limit. `storageLimit` is expected to already
+   * match `STORAGE_LIMIT_PATTERN` — enforced by `UpdateStorageDto`'s
+   * `@Matches`, not re-checked here.
+   *
+   * Grows only: the underlying volume can be expanded but never shrunk, so a
+   * value that is not larger than what is stored is rejected instead of being
+   * silently accepted (which would record a promise the infrastructure cannot
+   * keep) or silently ignored (which would hide the mistake from the caller).
+   * An identical value is a no-op, as elsewhere in this service.
+   *
+   * @param confirm must repeat `name`, as on every write to an existing
+   *   instance.
+   */
+  async updateStorage(
+    name: string,
+    storageLimit: string,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    if (instance.storageLimit !== null) {
+      const currentBytes = parseStorageLimitBytes(instance.storageLimit);
+      const requestedBytes = parseStorageLimitBytes(storageLimit);
+      if (requestedBytes === currentBytes) {
+        return instance;
+      }
+      if (requestedBytes < currentBytes) {
+        throw new BadRequestException(
+          `storageLimit "${storageLimit}" is not larger than the current ` +
+            `value "${instance.storageLimit}" — the underlying volume can ` +
+            "grow but not shrink.",
+        );
+      }
+    }
+
+    // Conditional on the row still existing, as with `updateAppConfig`: a
+    // lost update here means a storage limit not raised as far as intended,
+    // where the conditional on `setStatus` guards against destruction.
+    const updated = await this.instanceRepo.update({ name }, { storageLimit });
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    this.logger.warn("Instance storage limit changed", {
+      name: saved.name,
+      storageLimit: saved.storageLimit,
+      previousStorageLimit: instance.storageLimit,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {

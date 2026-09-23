@@ -73,14 +73,25 @@ serves the Brevo webhook. Nothing about a call here looks dangerous, which is
 part of why `confirm` applies to it too: whether a change stops an instance
 persisting its data can hide inside an override this API does not interpret.
 
+### Storage limit
+
+`storageLimit` is a floor on the storage the deployment gives the instance, as
+a whole number of Mi, Gi or Ti (e.g. `"5Gi"`) — meant for an instance whose
+data has outgrown the [cluster deployment][infra]'s default volume size.
+`null` until set, and changed through `PATCH /api/v1/instances/:name/storage`.
+
+It only ever grows: the underlying volume can be expanded but never shrunk, so
+a value that is not larger than what is already stored is rejected rather than
+accepted and then having no effect where it is applied.
+
 ### Confirming the target
 
-Every admin route that writes to an existing instance — `hibernate`, `activate`,
-`app-config`, `DELETE` — requires `?confirm=<name>` repeating the name from the
-path, and takes the admin password only. Valid credentials do not establish that
-the caller meant this particular instance, and none of these calls has an undo:
-a mistyped subdomain or a script pointed at the wrong stack is the failure the
-parameter is there to catch. It is required even when the call turns out to
+Every admin route that writes to an existing instance
+requires `?confirm=<name>` repeating the name from the path,
+and takes the admin password only. Valid credentials do not
+establish that the caller meant this particular instance, and none of these
+calls has an undo: a mistyped subdomain or a script pointed at the wrong stack
+is the failure the parameter is there to catch. It is required even when the call turns out to
 change nothing, so the no-op case cannot become a way past the check.
 
 ---
