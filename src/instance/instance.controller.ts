@@ -37,6 +37,7 @@ import {
   InstanceResponseDto,
   ListInstancesQueryDto,
   UpdateAppConfigDto,
+  UpdateStorageDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
@@ -246,6 +247,46 @@ export class InstanceController {
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
     return this.instanceService.updateAppConfig(name, dto, confirm);
+  }
+
+  @Patch(":name/storage")
+  @UseGuards(BasicAuthGuard)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Raise an instance's storage limit",
+    description:
+      "Sets a floor on the storage the deployment gives the instance. The " +
+      "underlying volume can be grown but never shrunk, so this only ever " +
+      "raises the stored value — a value that is not larger than what is " +
+      "already stored is rejected rather than silently accepted. `confirm` " +
+      "is required as on every write to an existing instance.",
+    operationId: "updateInstanceStorage",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description: "Updated instance.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Missing or mismatched `confirm`, a malformed value, or a value that " +
+      "is not larger than what is already stored.",
+  })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description:
+      "The instance was changed or deleted while the request was in flight.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async updateStorage(
+    @Param("name") name: string,
+    @Body() dto: UpdateStorageDto,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.updateStorage(name, dto.storageLimit, confirm);
   }
 
   @Delete(":name")

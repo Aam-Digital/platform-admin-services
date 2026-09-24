@@ -8,7 +8,7 @@ import {
 } from "@nestjs/common";
 import { ConfigService } from "@nestjs/config";
 import { InjectRepository } from "@nestjs/typeorm";
-import { QueryDeepPartialEntity, Repository } from "typeorm";
+import { IsNull, QueryDeepPartialEntity, Repository } from "typeorm";
 import { Octokit } from "@octokit/rest";
 import { createAppAuth } from "@octokit/auth-app";
 import {
@@ -17,7 +17,13 @@ import {
   type InstanceStatusFilter,
 } from "./dto";
 import { INSTANCE_NAME_PATTERN } from "./dto/create-instance.dto";
-import { Instance, InstanceStatus } from "./instance.entity";
+import {
+  Instance,
+  InstanceStatus,
+  DEFAULT_MAX_STORAGE_LIMIT,
+  parseStorageLimitBytes,
+  STORAGE_LIMIT_PATTERN,
+} from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 
 /**
@@ -45,6 +51,7 @@ const RESERVED_NAMES = new Set([
   "preview",
   "test",
   "status",
+  "cluster",
 ]);
 
 /**
@@ -63,6 +70,7 @@ const GITHUB_INFRA_REPO = "aam-cloud-infrastructure";
 export class InstanceService implements OnModuleInit {
   private readonly logger = new Logger(InstanceService.name);
   private readonly infraStack: string;
+  private readonly maxStorageLimit: string;
   private octokit: Octokit | null = null;
 
   constructor(
@@ -71,6 +79,16 @@ export class InstanceService implements OnModuleInit {
     private readonly configService: ConfigService,
   ) {
     this.infraStack = this.configService.getOrThrow<string>("INFRA_STACK");
+    this.maxStorageLimit = this.configService.get<string>(
+      "MAX_STORAGE_LIMIT",
+      DEFAULT_MAX_STORAGE_LIMIT,
+    );
+    if (!STORAGE_LIMIT_PATTERN.test(this.maxStorageLimit)) {
+      throw new Error(
+        `MAX_STORAGE_LIMIT "${this.maxStorageLimit}" is not a whole number ` +
+          "of Mi, Gi or Ti",
+      );
+    }
   }
 
   async onModuleInit(): Promise<void> {
@@ -325,6 +343,80 @@ export class InstanceService implements OnModuleInit {
       previousMode: instance.mode,
       hasOverride: saved.appConfigOverride !== null,
       hadOverride: instance.appConfigOverride !== null,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
+   * Raises an instance's storage limit. `storageLimit` is expected to already
+   * match `STORAGE_LIMIT_PATTERN` — enforced by `UpdateStorageDto`'s
+   * `@Matches`, not re-checked here.
+   *
+   * Grows only: the underlying volume can be expanded but never shrunk, so a
+   * value that is not larger than what is stored is rejected instead of being
+   * silently accepted (which would record a promise the infrastructure cannot
+   * keep) or silently ignored (which would hide the mistake from the caller).
+   * An identical value is a no-op, as elsewhere in this service. Anything
+   * above the `MAX_STORAGE_LIMIT` env var is rejected.
+   *
+   * @param confirm must repeat `name`, as on every write to an existing
+   *   instance.
+   */
+  async updateStorage(
+    name: string,
+    storageLimit: string,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    const requestedBytes = parseStorageLimitBytes(storageLimit);
+    if (requestedBytes > parseStorageLimitBytes(this.maxStorageLimit)) {
+      throw new BadRequestException(
+        `storageLimit "${storageLimit}" exceeds the maximum of ` +
+          `"${this.maxStorageLimit}".`,
+      );
+    }
+
+    if (instance.storageLimit !== null) {
+      const currentBytes = parseStorageLimitBytes(instance.storageLimit);
+      if (requestedBytes === currentBytes) {
+        return instance;
+      }
+      if (requestedBytes < currentBytes) {
+        throw new BadRequestException(
+          `storageLimit "${storageLimit}" is not larger than the current ` +
+            `value "${instance.storageLimit}" — the underlying volume can ` +
+            "grow but not shrink.",
+        );
+      }
+    }
+
+    // Conditional on the limit that was read, as with `setStatus`: the
+    // grows-only check above was made against it, and a concurrent raise to a
+    // larger value would otherwise be overwritten with this smaller one.
+    const updated = await this.instanceRepo.update(
+      { name, storageLimit: instance.storageLimit ?? IsNull() },
+      { storageLimit },
+    );
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    this.logger.warn("Instance storage limit changed", {
+      name: saved.name,
+      storageLimit: saved.storageLimit,
+      previousStorageLimit: instance.storageLimit,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {
