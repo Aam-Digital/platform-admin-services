@@ -84,6 +84,16 @@ It only ever grows: the underlying volume can be expanded but never shrunk, so
 a value that is not larger than what is already stored is rejected rather than
 accepted and then having no effect where it is applied.
 
+### Version
+
+`version` is the Aam Digital release an instance runs, as a tag of the
+`aamdigital/ndb-server` image (e.g. `"stable"`, `"master"` or `"3.52.0"`).
+`null` until set, which runs the [cluster deployment][infra]'s default, and
+changed or unset (with `null`) through `PATCH /api/v1/instances/:name/version`.
+
+The deployment follows the tag as it moves, so a release number rather than a
+moving tag pins the instance to that release until it is changed again.
+
 ### Confirming the target
 
 Every admin route that writes to an existing instance

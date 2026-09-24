@@ -1078,6 +1078,126 @@ describe("Instances (e2e)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
+  // PATCH /api/v1/instances/:name/version
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("PATCH /api/v1/instances/:name/version", () => {
+    async function createInstance(name: string): Promise<void> {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name, ownerEmail: `${name}@example.com` })
+        .expect(201);
+    }
+
+    async function manifestVersion(name: string): Promise<unknown> {
+      const res = await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200);
+      return res.body.find((i: any) => i.name === name).version;
+    }
+
+    it("should default a new instance to no version", async () => {
+      await createInstance("version-default-org");
+
+      expect(await manifestVersion("version-default-org")).toBeNull();
+    });
+
+    it("should set a version, round-trip it and unset it again", async () => {
+      await createInstance("version-org");
+      const url = "/api/v1/instances/version-org/version?confirm=version-org";
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ version: "stable" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.version).toBe("stable");
+        });
+
+      await new Promise(setImmediate);
+      expect(mockDispatch).toHaveBeenCalledTimes(1);
+      expect(await manifestVersion("version-org")).toBe("stable");
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ version: null })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.version).toBeNull();
+        });
+      expect(await manifestVersion("version-org")).toBeNull();
+    });
+
+    it.each([
+      { label: "absent", body: {} },
+      { label: "repository", body: { version: "aamdigital/ndb-server:3.0" } },
+      { label: "leading-dot", body: { version: ".stable" } },
+      { label: "too-long", body: { version: "a".repeat(129) } },
+      { label: "not-a-string", body: { version: 3 } },
+    ])(
+      "should reject a $label version, keeping what is stored",
+      async ({ label, body }) => {
+        const name = `version-${label}-org`;
+        const url = `/api/v1/instances/${name}/version?confirm=${name}`;
+        await createInstance(name);
+        await request(app.getHttpServer())
+          .patch(url)
+          .send({ version: "stable" })
+          .expect(200);
+
+        await request(app.getHttpServer()).patch(url).send(body).expect(400);
+
+        expect(await manifestVersion(name)).toBe("stable");
+      },
+    );
+
+    it("should require confirm even for a harmless change", async () => {
+      await createInstance("version-confirm-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/version-confirm-org/version")
+        .send({ version: "stable" })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/version-confirm-org/version?confirm=other-org",
+        )
+        .send({ version: "stable" })
+        .expect(400);
+    });
+
+    it("should 404 for an unknown instance", () => {
+      return request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/no-such-version-org/version?confirm=no-such-version-org",
+        )
+        .send({ version: "stable" })
+        .expect(404);
+    });
+
+    it("should not deploy for the version already stored", async () => {
+      await createInstance("version-noop-org");
+      const url =
+        "/api/v1/instances/version-noop-org/version?confirm=version-noop-org";
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ version: "stable" })
+        .expect(200);
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ version: "stable" })
+        .expect(200);
+
+      await new Promise(setImmediate);
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
   // GET /api/v1/instances/check/:name
   // ────────────────────────────────────────────────────────────────────
 

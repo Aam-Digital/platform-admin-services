@@ -430,6 +430,53 @@ export class InstanceService implements OnModuleInit {
   }
 
   /**
+   * Sets the image tag an instance runs, or with `null` unsets it. `version` is
+   * expected to already match `VERSION_PATTERN` — enforced by
+   * `UpdateVersionDto`'s `@Matches`, not re-checked here.
+   *
+   * @param confirm must repeat `name`, as on every write to an existing
+   *   instance.
+   */
+  async updateVersion(
+    name: string,
+    version: string | null,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    // No deployment for a request that asks for what is already stored, as in
+    // `updateAppConfig`.
+    if (version === instance.version) {
+      return instance;
+    }
+
+    // Conditional on the row still existing only, as in `updateAppConfig`: a
+    // lost update here means a stale version, not a destroyed instance.
+    const updated = await this.instanceRepo.update({ name }, { version });
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    this.logger.warn("Instance version changed", {
+      name: saved.name,
+      version: saved.version,
+      previousVersion: instance.version,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
    * Deletes the record of an already hibernated instance, freeing its name.
    *
    * No deployment is triggered: an inactive instance is out of the manifest

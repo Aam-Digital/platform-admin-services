@@ -505,6 +505,71 @@ describe("InstanceService", () => {
     });
   });
 
+  describe("updateVersion", () => {
+    function givenStored(version: string | null): Instance {
+      const instance = { name: "my-org", version } as Instance;
+      repo.findOneBy.mockResolvedValue(instance);
+      return instance;
+    }
+
+    it.each([
+      // stored, requested
+      [null, "stable"],
+      ["stable", "3.52.0"],
+      ["master", null], // unset
+    ])("should write %p → %p", async (stored, requested) => {
+      givenStored(stored);
+
+      await service.updateVersion("my-org", requested, "my-org");
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { version: requested },
+      );
+    });
+
+    it.each([null, "stable"])(
+      "should not deploy for %p when it is already stored",
+      async (version) => {
+        const stored = givenStored(version);
+
+        const result = await service.updateVersion("my-org", version, "my-org");
+
+        expect(result).toBe(stored);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([undefined, "other-org"])(
+      "should reject confirm=%p",
+      async (confirm) => {
+        givenStored(null);
+
+        await expect(
+          service.updateVersion("my-org", "stable", confirm),
+        ).rejects.toThrow(BadRequestException);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should throw NotFoundException for an unknown instance", async () => {
+      repo.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.updateVersion("nope", "stable", "nope"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ConflictException when the row went away", async () => {
+      givenStored(null);
+      repo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await expect(
+        service.updateVersion("my-org", "stable", "my-org"),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe("create", () => {
     it("should create a new instance", async () => {
       const dto = { name: "new-org", ownerEmail: "a@b.com" };

@@ -7,6 +7,7 @@ import {
   InstanceStatus,
   MODE_DESCRIPTION,
   STORAGE_LIMIT_DESCRIPTION,
+  VERSION_DESCRIPTION,
 } from "../instance.entity";
 
 export class InstanceResponseDto {
@@ -56,4 +57,11 @@ export class InstanceResponseDto {
     example: null,
   })
   storageLimit: string | null;
+
+  @ApiProperty({
+    description: VERSION_DESCRIPTION,
+    nullable: true,
+    example: null,
+  })
+  version: string | null;
 }

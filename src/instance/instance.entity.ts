@@ -116,6 +116,23 @@ export function parseStorageLimitBytes(value: string): number {
   );
 }
 
+/**
+ * An image tag, in the grammar the OCI distribution spec allows for one — which
+ * also keeps anything but a tag (a registry, a repository, a digest) out of the
+ * value.
+ */
+export const VERSION_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
+
+/**
+ * API docs shared with all DTOs that expose `version` for consistency.
+ */
+export const VERSION_DESCRIPTION =
+  "The Aam Digital release the instance runs, as a tag of the " +
+  '`aamdigital/ndb-server` image (e.g. "stable", "master" or "3.52.0"). ' +
+  "The deployment follows the tag as it moves, so a release number pins the " +
+  "instance to that release until this is changed again. `null` runs the " +
+  "deployment's default.";
+
 @Entity("instances")
 // Any other value reads as "not active" and therefore as "destroy this
 // instance", so it must not be storable. Declared here as well as in the
@@ -193,6 +210,13 @@ export class Instance {
     nullable: true,
   })
   storageLimit: string | null;
+
+  /**
+   * The image tag the instance runs, as a `VERSION_PATTERN` value. `null` — the
+   * normal case — runs the infrastructure's default.
+   */
+  @Column({ type: "varchar", length: 128, nullable: true })
+  version: string | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
