@@ -7,7 +7,8 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { IsNull, Repository } from "typeorm";
-import { Instance } from "./instance.entity";
+import { Instance, type InstanceVersions } from "./instance.entity";
+import { UpdateVersionsDto } from "./dto/update-versions.dto";
 import { InstanceService } from "./instance.service";
 
 describe("InstanceService", () => {
@@ -502,6 +503,101 @@ describe("InstanceService", () => {
       it("should refuse to start with a malformed value", () => {
         expect(() => withMax("10GB")).toThrow("MAX_STORAGE_LIMIT");
       });
+    });
+  });
+
+  describe("updateVersions", () => {
+    function givenStored(versions: InstanceVersions | null): Instance {
+      const instance = { name: "my-org", versions } as Instance;
+      repo.findOneBy.mockResolvedValue(instance);
+      return instance;
+    }
+
+    it.each<
+      [InstanceVersions | null, UpdateVersionsDto, InstanceVersions | null]
+    >([
+      // stored, requested, written
+      [null, { "ndb-core": "stable" }, { "ndb-core": "stable" }],
+      [
+        { "ndb-core": "stable" },
+        { "aam-services": "1.2.0" },
+        { "ndb-core": "stable", "aam-services": "1.2.0" },
+      ],
+      [
+        { "ndb-core": "stable", "aam-services": "1.2.0" },
+        { "ndb-core": null },
+        { "aam-services": "1.2.0" },
+      ],
+      [{ "ndb-core": "stable" }, { "ndb-core": null }, null], // the last one
+    ])(
+      "should merge %j with %j into %j",
+      async (stored, requested, written) => {
+        givenStored(stored);
+
+        await service.updateVersions("my-org", requested, "my-org");
+
+        expect(repo.update).toHaveBeenCalledWith(
+          { name: "my-org" },
+          { versions: written },
+        );
+      },
+    );
+
+    it.each<[InstanceVersions | null, UpdateVersionsDto]>([
+      [null, { "ndb-core": null }],
+      [{ "ndb-core": "stable" }, { "ndb-core": "stable" }],
+    ])(
+      "should not deploy when %j is stored and %j requested",
+      async (stored, requested) => {
+        const instance = givenStored(stored);
+
+        const result = await service.updateVersions(
+          "my-org",
+          requested,
+          "my-org",
+        );
+
+        expect(result).toBe(instance);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should reject a request that names no component", async () => {
+      givenStored(null);
+
+      await expect(
+        service.updateVersions("my-org", {}, "my-org"),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
+
+    it.each([undefined, "other-org"])(
+      "should reject confirm=%p",
+      async (confirm) => {
+        givenStored(null);
+
+        await expect(
+          service.updateVersions("my-org", { "ndb-core": "stable" }, confirm),
+        ).rejects.toThrow(BadRequestException);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should throw NotFoundException for an unknown instance", async () => {
+      repo.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.updateVersions("nope", { "ndb-core": "stable" }, "nope"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ConflictException when the row went away", async () => {
+      givenStored(null);
+      repo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await expect(
+        service.updateVersions("my-org", { "ndb-core": "stable" }, "my-org"),
+      ).rejects.toThrow(ConflictException);
     });
   });
 

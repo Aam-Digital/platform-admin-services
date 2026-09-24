@@ -84,6 +84,20 @@ It only ever grows: the underlying volume can be expanded but never shrunk, so
 a value that is not larger than what is already stored is rejected rather than
 accepted and then having no effect where it is applied.
 
+### Versions
+
+`versions` are the image tags an instance runs, per component — `ndb-core`,
+`aam-services` and `replication-backend`, named after their images — e.g.
+`{ "ndb-core": "stable" }`. `null` until set, which runs the
+[cluster deployment][infra]'s defaults, and changed through
+`PATCH /api/v1/instances/:name/versions`: a component in the body is set, or
+with `null` unset, and the others keep their value.
+
+The deployment follows a tag as it moves, so a release number rather than a
+moving tag pins that component until it is changed again. Which components it
+applies a version to is decided there — one it does not deploy per instance
+ignores the value.
+
 ### Confirming the target
 
 Every admin route that writes to an existing instance

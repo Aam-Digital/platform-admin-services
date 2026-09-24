@@ -38,6 +38,7 @@ import {
   ListInstancesQueryDto,
   UpdateAppConfigDto,
   UpdateStorageDto,
+  UpdateVersionsDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
@@ -287,6 +288,44 @@ export class InstanceController {
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
     return this.instanceService.updateStorage(name, dto.storageLimit, confirm);
+  }
+
+  @Patch(":name/versions")
+  @UseGuards(BasicAuthGuard)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Set the versions an instance runs",
+    description:
+      "Sets the image tag the deployment runs a component of the instance " +
+      "from, or with `null` goes back to the deployment's default for it. " +
+      "Components left out of the body keep what is stored. `confirm` is " +
+      "required as on every write to an existing instance.",
+    operationId: "updateInstanceVersions",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description: "Updated instance.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Missing or mismatched `confirm`, no component in the body, an " +
+      "unknown component, or a malformed value.",
+  })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description: "The instance was deleted while the request was in flight.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async updateVersions(
+    @Param("name") name: string,
+    @Body() dto: UpdateVersionsDto,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.updateVersions(name, dto, confirm);
   }
 
   @Delete(":name")

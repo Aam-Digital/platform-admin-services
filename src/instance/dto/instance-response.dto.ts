@@ -7,6 +7,9 @@ import {
   InstanceStatus,
   MODE_DESCRIPTION,
   STORAGE_LIMIT_DESCRIPTION,
+  VERSION_COMPONENTS,
+  VERSIONS_DESCRIPTION,
+  type InstanceVersions,
 } from "../instance.entity";
 
 export class InstanceResponseDto {
@@ -56,4 +59,15 @@ export class InstanceResponseDto {
     example: null,
   })
   storageLimit: string | null;
+
+  @ApiProperty({
+    description: `${VERSIONS_DESCRIPTION} \`null\` when none is set.`,
+    type: "object",
+    properties: Object.fromEntries(
+      VERSION_COMPONENTS.map((component) => [component, { type: "string" }]),
+    ),
+    nullable: true,
+    example: { "ndb-core": "stable" },
+  })
+  versions: InstanceVersions | null;
 }
