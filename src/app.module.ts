@@ -12,7 +12,7 @@ import { AddAlternativeHostnames1755400000000 } from "./migrations/1755400000000
 import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateInstances";
 import { AddInstanceAppConfig1787270400000 } from "./migrations/1787270400000-AddInstanceAppConfig";
 import { AddInstanceStorageLimit1789689600000 } from "./migrations/1789689600000-AddInstanceStorageLimit";
-import { AddInstanceVersion1790294400000 } from "./migrations/1790294400000-AddInstanceVersion";
+import { AddInstanceVersions1790294400000 } from "./migrations/1790294400000-AddInstanceVersions";
 
 @Module({
   imports: [
@@ -38,7 +38,7 @@ import { AddInstanceVersion1790294400000 } from "./migrations/1790294400000-AddI
           AddInstanceStatus1787097600000,
           AddInstanceAppConfig1787270400000,
           AddInstanceStorageLimit1789689600000,
-          AddInstanceVersion1790294400000,
+          AddInstanceVersions1790294400000,
         ],
         migrationsRun: config.get<string>("NODE_ENV") === "production",
         synchronize: config.get<string>("NODE_ENV") !== "production",

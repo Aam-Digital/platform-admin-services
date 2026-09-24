@@ -23,8 +23,11 @@ import {
   DEFAULT_MAX_STORAGE_LIMIT,
   parseStorageLimitBytes,
   STORAGE_LIMIT_PATTERN,
+  VERSION_COMPONENTS,
+  type InstanceVersions,
 } from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
+import { UpdateVersionsDto } from "./dto/update-versions.dto";
 
 /**
  * Names that must not be used as instance subdomains.
@@ -430,40 +433,68 @@ export class InstanceService implements OnModuleInit {
   }
 
   /**
-   * Sets the image tag an instance runs, or with `null` unsets it. `version` is
-   * expected to already match `VERSION_PATTERN` — enforced by
-   * `UpdateVersionDto`'s `@Matches`, not re-checked here.
+   * Sets or unsets the image tag of each component present in `dto`, keeping
+   * the others. The values are expected to already match `VERSION_PATTERN` —
+   * enforced by `UpdateVersionsDto`, not re-checked here.
    *
    * @param confirm must repeat `name`, as on every write to an existing
    *   instance.
    */
-  async updateVersion(
+  async updateVersions(
     name: string,
-    version: string | null,
+    dto: UpdateVersionsDto,
     confirm: string | undefined,
   ): Promise<Instance> {
     const instance = await this.findOneOrFail(name);
     this.assertNameConfirmed(name, confirm);
 
+    if (VERSION_COMPONENTS.every((component) => dto[component] === undefined)) {
+      throw new BadRequestException(
+        `Nothing to change: pass at least one of ${VERSION_COMPONENTS.map((c) => `"${c}"`).join(", ")}.`,
+      );
+    }
+
+    // Built in `VERSION_COMPONENTS` order, and with unset components left out
+    // rather than stored as `null`, so there is one stored form per state.
+    const versions: InstanceVersions = {};
+    for (const component of VERSION_COMPONENTS) {
+      const requested = dto[component];
+      const version =
+        requested === undefined ? instance.versions?.[component] : requested;
+      if (version !== undefined && version !== null) {
+        versions[component] = version;
+      }
+    }
+
     // No deployment for a request that asks for what is already stored, as in
     // `updateAppConfig`.
-    if (version === instance.version) {
+    if (
+      VERSION_COMPONENTS.every(
+        (component) => versions[component] === instance.versions?.[component],
+      )
+    ) {
       return instance;
     }
 
     // Conditional on the row still existing only, as in `updateAppConfig`: a
     // lost update here means a stale version, not a destroyed instance.
-    const updated = await this.instanceRepo.update({ name }, { version });
+    const updated = await this.instanceRepo.update(
+      { name },
+      // Replaced whole, see `updateAppConfig`.
+      {
+        versions: Object.keys(versions).length === 0 ? null : versions,
+      } as QueryDeepPartialEntity<Instance>,
+    );
     if (updated.affected === 0) {
       throw new ConflictException(RACE_MESSAGE(name));
     }
 
     const saved = await this.findOneOrFail(name);
 
-    this.logger.warn("Instance version changed", {
+    this.logger.warn("Instance versions changed", {
       name: saved.name,
-      version: saved.version,
-      previousVersion: instance.version,
+      versions: saved.versions,
+      previousVersions: instance.versions,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {

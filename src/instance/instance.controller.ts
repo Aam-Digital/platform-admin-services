@@ -38,7 +38,7 @@ import {
   ListInstancesQueryDto,
   UpdateAppConfigDto,
   UpdateStorageDto,
-  UpdateVersionDto,
+  UpdateVersionsDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
@@ -290,16 +290,17 @@ export class InstanceController {
     return this.instanceService.updateStorage(name, dto.storageLimit, confirm);
   }
 
-  @Patch(":name/version")
+  @Patch(":name/versions")
   @UseGuards(BasicAuthGuard)
   @ApiBasicAuth()
   @ApiOperation({
-    summary: "Set the Aam Digital version an instance runs",
+    summary: "Set the versions an instance runs",
     description:
-      "Sets the image tag the deployment runs the instance from, or with " +
-      "`null` goes back to the deployment's default. `confirm` is required " +
-      "as on every write to an existing instance.",
-    operationId: "updateInstanceVersion",
+      "Sets the image tag the deployment runs a component of the instance " +
+      "from, or with `null` goes back to the deployment's default for it. " +
+      "Components left out of the body keep what is stored. `confirm` is " +
+      "required as on every write to an existing instance.",
+    operationId: "updateInstanceVersions",
   })
   @ApiParam({ name: "name", description: "The instance name (subdomain)." })
   @ApiQuery(CONFIRM_QUERY)
@@ -308,7 +309,9 @@ export class InstanceController {
     type: InstanceResponseDto,
   })
   @ApiBadRequestResponse({
-    description: "Missing or mismatched `confirm`, or a malformed value.",
+    description:
+      "Missing or mismatched `confirm`, no component in the body, an " +
+      "unknown component, or a malformed value.",
   })
   @ApiNotFoundResponse({ description: "No such instance." })
   @ApiConflictResponse({
@@ -317,12 +320,12 @@ export class InstanceController {
   @ApiUnauthorizedResponse({
     description: "Admin Basic auth credentials required.",
   })
-  async updateVersion(
+  async updateVersions(
     @Param("name") name: string,
-    @Body() dto: UpdateVersionDto,
+    @Body() dto: UpdateVersionsDto,
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
-    return this.instanceService.updateVersion(name, dto.version, confirm);
+    return this.instanceService.updateVersions(name, dto, confirm);
   }
 
   @Delete(":name")

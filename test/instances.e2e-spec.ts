@@ -1078,10 +1078,10 @@ describe("Instances (e2e)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
-  // PATCH /api/v1/instances/:name/version
+  // PATCH /api/v1/instances/:name/versions
   // ────────────────────────────────────────────────────────────────────
 
-  describe("PATCH /api/v1/instances/:name/version", () => {
+  describe("PATCH /api/v1/instances/:name/versions", () => {
     async function createInstance(name: string): Promise<void> {
       await request(app.getHttpServer())
         .post("/api/v1/instances")
@@ -1089,107 +1089,127 @@ describe("Instances (e2e)", () => {
         .expect(201);
     }
 
-    async function manifestVersion(name: string): Promise<unknown> {
+    async function manifestVersions(name: string): Promise<unknown> {
       const res = await request(app.getHttpServer())
         .get("/api/v1/instances")
         .expect(200);
-      return res.body.find((i: any) => i.name === name).version;
+      return res.body.find((i: any) => i.name === name).versions;
     }
 
-    it("should default a new instance to no version", async () => {
-      await createInstance("version-default-org");
+    it("should default a new instance to no versions", async () => {
+      await createInstance("versions-default-org");
 
-      expect(await manifestVersion("version-default-org")).toBeNull();
+      expect(await manifestVersions("versions-default-org")).toBeNull();
     });
 
-    it("should set a version, round-trip it and unset it again", async () => {
-      await createInstance("version-org");
-      const url = "/api/v1/instances/version-org/version?confirm=version-org";
+    it("should set, merge and unset versions per component", async () => {
+      await createInstance("versions-org");
+      const url =
+        "/api/v1/instances/versions-org/versions?confirm=versions-org";
       mockDispatch.mockClear();
 
       await request(app.getHttpServer())
         .patch(url)
-        .send({ version: "stable" })
+        .send({ "ndb-core": "stable" })
         .expect(200)
         .expect((res) => {
-          expect(res.body.version).toBe("stable");
+          expect(res.body.versions).toEqual({ "ndb-core": "stable" });
         });
-
       await new Promise(setImmediate);
       expect(mockDispatch).toHaveBeenCalledTimes(1);
-      expect(await manifestVersion("version-org")).toBe("stable");
+      expect(await manifestVersions("versions-org")).toEqual({
+        "ndb-core": "stable",
+      });
 
       await request(app.getHttpServer())
         .patch(url)
-        .send({ version: null })
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.version).toBeNull();
-        });
-      expect(await manifestVersion("version-org")).toBeNull();
+        .send({ "replication-backend": "1.4.0" })
+        .expect(200);
+      expect(await manifestVersions("versions-org")).toEqual({
+        "ndb-core": "stable",
+        "replication-backend": "1.4.0",
+      });
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ "ndb-core": null })
+        .expect(200);
+      expect(await manifestVersions("versions-org")).toEqual({
+        "replication-backend": "1.4.0",
+      });
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ "replication-backend": null })
+        .expect(200);
+      expect(await manifestVersions("versions-org")).toBeNull();
     });
 
     it.each([
-      { label: "absent", body: {} },
-      { label: "repository", body: { version: "aamdigital/ndb-server:3.0" } },
-      { label: "leading-dot", body: { version: ".stable" } },
-      { label: "too-long", body: { version: "a".repeat(129) } },
-      { label: "not-a-string", body: { version: 3 } },
+      { label: "empty", body: {} },
+      { label: "unknown-component", body: { ndbCore: "stable" } },
+      {
+        label: "repository",
+        body: { "ndb-core": "aamdigital/ndb-server:3.0" },
+      },
+      { label: "leading-dot", body: { "ndb-core": ".stable" } },
+      { label: "too-long", body: { "aam-services": "a".repeat(129) } },
+      { label: "not-a-string", body: { "ndb-core": 3 } },
     ])(
-      "should reject a $label version, keeping what is stored",
+      "should reject a $label body, keeping what is stored",
       async ({ label, body }) => {
-        const name = `version-${label}-org`;
-        const url = `/api/v1/instances/${name}/version?confirm=${name}`;
+        const name = `versions-${label}-org`;
+        const url = `/api/v1/instances/${name}/versions?confirm=${name}`;
         await createInstance(name);
         await request(app.getHttpServer())
           .patch(url)
-          .send({ version: "stable" })
+          .send({ "ndb-core": "stable" })
           .expect(200);
 
         await request(app.getHttpServer()).patch(url).send(body).expect(400);
 
-        expect(await manifestVersion(name)).toBe("stable");
+        expect(await manifestVersions(name)).toEqual({ "ndb-core": "stable" });
       },
     );
 
     it("should require confirm even for a harmless change", async () => {
-      await createInstance("version-confirm-org");
+      await createInstance("versions-confirm-org");
 
       await request(app.getHttpServer())
-        .patch("/api/v1/instances/version-confirm-org/version")
-        .send({ version: "stable" })
+        .patch("/api/v1/instances/versions-confirm-org/versions")
+        .send({ "ndb-core": "stable" })
         .expect(400);
 
       await request(app.getHttpServer())
         .patch(
-          "/api/v1/instances/version-confirm-org/version?confirm=other-org",
+          "/api/v1/instances/versions-confirm-org/versions?confirm=other-org",
         )
-        .send({ version: "stable" })
+        .send({ "ndb-core": "stable" })
         .expect(400);
     });
 
     it("should 404 for an unknown instance", () => {
       return request(app.getHttpServer())
         .patch(
-          "/api/v1/instances/no-such-version-org/version?confirm=no-such-version-org",
+          "/api/v1/instances/no-such-versions-org/versions?confirm=no-such-versions-org",
         )
-        .send({ version: "stable" })
+        .send({ "ndb-core": "stable" })
         .expect(404);
     });
 
-    it("should not deploy for the version already stored", async () => {
-      await createInstance("version-noop-org");
+    it("should not deploy for the versions already stored", async () => {
+      await createInstance("versions-noop-org");
       const url =
-        "/api/v1/instances/version-noop-org/version?confirm=version-noop-org";
+        "/api/v1/instances/versions-noop-org/versions?confirm=versions-noop-org";
       await request(app.getHttpServer())
         .patch(url)
-        .send({ version: "stable" })
+        .send({ "ndb-core": "stable" })
         .expect(200);
       mockDispatch.mockClear();
 
       await request(app.getHttpServer())
         .patch(url)
-        .send({ version: "stable" })
+        .send({ "ndb-core": "stable", "aam-services": null })
         .expect(200);
 
       await new Promise(setImmediate);

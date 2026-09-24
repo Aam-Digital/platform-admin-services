@@ -7,7 +7,8 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { IsNull, Repository } from "typeorm";
-import { Instance } from "./instance.entity";
+import { Instance, type InstanceVersions } from "./instance.entity";
+import { UpdateVersionsDto } from "./dto/update-versions.dto";
 import { InstanceService } from "./instance.service";
 
 describe("InstanceService", () => {
@@ -505,40 +506,70 @@ describe("InstanceService", () => {
     });
   });
 
-  describe("updateVersion", () => {
-    function givenStored(version: string | null): Instance {
-      const instance = { name: "my-org", version } as Instance;
+  describe("updateVersions", () => {
+    function givenStored(versions: InstanceVersions | null): Instance {
+      const instance = { name: "my-org", versions } as Instance;
       repo.findOneBy.mockResolvedValue(instance);
       return instance;
     }
 
-    it.each([
-      // stored, requested
-      [null, "stable"],
-      ["stable", "3.52.0"],
-      ["master", null], // unset
-    ])("should write %p → %p", async (stored, requested) => {
-      givenStored(stored);
+    it.each<
+      [InstanceVersions | null, UpdateVersionsDto, InstanceVersions | null]
+    >([
+      // stored, requested, written
+      [null, { "ndb-core": "stable" }, { "ndb-core": "stable" }],
+      [
+        { "ndb-core": "stable" },
+        { "aam-services": "1.2.0" },
+        { "ndb-core": "stable", "aam-services": "1.2.0" },
+      ],
+      [
+        { "ndb-core": "stable", "aam-services": "1.2.0" },
+        { "ndb-core": null },
+        { "aam-services": "1.2.0" },
+      ],
+      [{ "ndb-core": "stable" }, { "ndb-core": null }, null], // the last one
+    ])(
+      "should merge %j with %j into %j",
+      async (stored, requested, written) => {
+        givenStored(stored);
 
-      await service.updateVersion("my-org", requested, "my-org");
+        await service.updateVersions("my-org", requested, "my-org");
 
-      expect(repo.update).toHaveBeenCalledWith(
-        { name: "my-org" },
-        { version: requested },
-      );
-    });
+        expect(repo.update).toHaveBeenCalledWith(
+          { name: "my-org" },
+          { versions: written },
+        );
+      },
+    );
 
-    it.each([null, "stable"])(
-      "should not deploy for %p when it is already stored",
-      async (version) => {
-        const stored = givenStored(version);
+    it.each<[InstanceVersions | null, UpdateVersionsDto]>([
+      [null, { "ndb-core": null }],
+      [{ "ndb-core": "stable" }, { "ndb-core": "stable" }],
+    ])(
+      "should not deploy when %j is stored and %j requested",
+      async (stored, requested) => {
+        const instance = givenStored(stored);
 
-        const result = await service.updateVersion("my-org", version, "my-org");
+        const result = await service.updateVersions(
+          "my-org",
+          requested,
+          "my-org",
+        );
 
-        expect(result).toBe(stored);
+        expect(result).toBe(instance);
         expect(repo.update).not.toHaveBeenCalled();
       },
     );
+
+    it("should reject a request that names no component", async () => {
+      givenStored(null);
+
+      await expect(
+        service.updateVersions("my-org", {}, "my-org"),
+      ).rejects.toThrow(BadRequestException);
+      expect(repo.update).not.toHaveBeenCalled();
+    });
 
     it.each([undefined, "other-org"])(
       "should reject confirm=%p",
@@ -546,7 +577,7 @@ describe("InstanceService", () => {
         givenStored(null);
 
         await expect(
-          service.updateVersion("my-org", "stable", confirm),
+          service.updateVersions("my-org", { "ndb-core": "stable" }, confirm),
         ).rejects.toThrow(BadRequestException);
         expect(repo.update).not.toHaveBeenCalled();
       },
@@ -556,7 +587,7 @@ describe("InstanceService", () => {
       repo.findOneBy.mockResolvedValue(null);
 
       await expect(
-        service.updateVersion("nope", "stable", "nope"),
+        service.updateVersions("nope", { "ndb-core": "stable" }, "nope"),
       ).rejects.toThrow(NotFoundException);
     });
 
@@ -565,7 +596,7 @@ describe("InstanceService", () => {
       repo.update.mockResolvedValue({ affected: 0 } as never);
 
       await expect(
-        service.updateVersion("my-org", "stable", "my-org"),
+        service.updateVersions("my-org", { "ndb-core": "stable" }, "my-org"),
       ).rejects.toThrow(ConflictException);
     });
   });

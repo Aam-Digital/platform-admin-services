@@ -117,6 +117,21 @@ export function parseStorageLimitBytes(value: string): number {
 }
 
 /**
+ * The components of an instance whose version can be set, each named after its
+ * image. Which of them the deployment actually applies a version to is decided
+ * there; a component it does not deploy per instance ignores the value.
+ */
+export const VERSION_COMPONENTS = [
+  "ndb-core",
+  "aam-services",
+  "replication-backend",
+] as const;
+
+export type VersionComponent = (typeof VERSION_COMPONENTS)[number];
+
+export type InstanceVersions = Partial<Record<VersionComponent, string>>;
+
+/**
  * An image tag, in the grammar the OCI distribution spec allows for one — which
  * also keeps anything but a tag (a registry, a repository, a digest) out of the
  * value.
@@ -124,14 +139,15 @@ export function parseStorageLimitBytes(value: string): number {
 export const VERSION_PATTERN = /^[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}$/;
 
 /**
- * API docs shared with all DTOs that expose `version` for consistency.
+ * API docs shared with all DTOs that expose `versions` for consistency.
  */
-export const VERSION_DESCRIPTION =
-  "The Aam Digital release the instance runs, as a tag of the " +
-  '`aamdigital/ndb-server` image (e.g. "stable", "master" or "3.52.0"). ' +
-  "The deployment follows the tag as it moves, so a release number pins the " +
-  "instance to that release until this is changed again. `null` runs the " +
-  "deployment's default.";
+export const VERSIONS_DESCRIPTION =
+  "The versions the instance runs, per component, each as a tag of that " +
+  'component\'s image (e.g. "stable", "master" or "3.52.0"). The deployment ' +
+  "follows a tag as it moves, so a release number pins the component to that " +
+  "release until it is changed again. A component without a value runs the " +
+  "deployment's default. Which components the deployment applies a version " +
+  "to is decided there.";
 
 @Entity("instances")
 // Any other value reads as "not active" and therefore as "destroy this
@@ -212,11 +228,15 @@ export class Instance {
   storageLimit: string | null;
 
   /**
-   * The image tag the instance runs, as a `VERSION_PATTERN` value. `null` — the
-   * normal case — runs the infrastructure's default.
+   * Image tags per component, each a `VERSION_PATTERN` value. `null` — the
+   * normal case — runs the infrastructure's defaults for every component; an
+   * object never holds a `null` value, a component without a version is left
+   * out instead.
+   *
+   * `simple-json` rather than `jsonb`, as with `appConfigOverride`.
    */
-  @Column({ type: "varchar", length: 128, nullable: true })
-  version: string | null;
+  @Column({ type: "simple-json", nullable: true })
+  versions: InstanceVersions | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
