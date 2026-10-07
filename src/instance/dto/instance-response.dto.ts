@@ -1,6 +1,7 @@
 import { ApiProperty } from "@nestjs/swagger";
 import {
   APP_CONFIG_OVERRIDE_DESCRIPTION,
+  BRANDING_DESCRIPTION,
   INSTANCE_MODES,
   INSTANCE_STATUSES,
   InstanceMode,
@@ -70,4 +71,13 @@ export class InstanceResponseDto {
     example: { "ndb-core": "stable" },
   })
   versions: InstanceVersions | null;
+
+  @ApiProperty({
+    description:
+      `${BRANDING_DESCRIPTION} \`null\` when unset — the normal case, where ` +
+      "the default icons are served.",
+    nullable: true,
+    example: null,
+  })
+  branding: string | null;
 }

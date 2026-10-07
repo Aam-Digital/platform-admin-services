@@ -1218,6 +1218,149 @@ describe("Instances (e2e)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
+  // PATCH /api/v1/instances/:name/branding
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("PATCH /api/v1/instances/:name/branding", () => {
+    async function createInstance(name: string): Promise<void> {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name, ownerEmail: `${name}@example.com` })
+        .expect(201);
+    }
+
+    async function manifestBranding(name: string): Promise<unknown> {
+      const res = await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200);
+      return res.body.find((i: any) => i.name === name).branding;
+    }
+
+    it("should default a new instance to no branding", async () => {
+      await createInstance("branding-default-org");
+
+      expect(await manifestBranding("branding-default-org")).toBeNull();
+    });
+
+    it("should set and unset the branding", async () => {
+      await createInstance("branding-org");
+      const url =
+        "/api/v1/instances/branding-org/branding?confirm=branding-org";
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ branding: "codo" })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.branding).toBe("codo");
+        });
+      await new Promise(setImmediate);
+      expect(mockDispatch).toHaveBeenCalledTimes(1);
+      expect(await manifestBranding("branding-org")).toBe("codo");
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ branding: null })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.branding).toBeNull();
+        });
+      expect(await manifestBranding("branding-org")).toBeNull();
+    });
+
+    it.each<[string, unknown]>([
+      ["uppercase", "Codo"],
+      ["a leading hyphen", "-codo"],
+      ["an underscore", "codo_1"],
+      ["more than 32 characters", "c".repeat(33)],
+      ["an empty string", ""],
+      ["a non-string", 42],
+    ])("should reject %s", async (label, branding) => {
+      const name = `branding-bad-${label.replace(/\W+/g, "-")}-org`;
+      await createInstance(name);
+
+      await request(app.getHttpServer())
+        .patch(`/api/v1/instances/${name}/branding?confirm=${name}`)
+        .send({ branding })
+        .expect(400);
+    });
+
+    it("should reject a body without the field", async () => {
+      await createInstance("branding-empty-org");
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/branding-empty-org/branding?confirm=branding-empty-org",
+        )
+        .send({})
+        .expect(400);
+    });
+
+    it("should reject a missing or mismatched confirm", async () => {
+      await createInstance("branding-confirm-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/branding-confirm-org/branding")
+        .send({ branding: "codo" })
+        .expect(400);
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/branding-confirm-org/branding?confirm=other-org",
+        )
+        .send({ branding: "codo" })
+        .expect(400);
+    });
+
+    it("should 404 for an unknown instance", () => {
+      return request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/no-such-branding-org/branding?confirm=no-such-branding-org",
+        )
+        .send({ branding: "codo" })
+        .expect(404);
+    });
+
+    it("should not deploy for the branding already stored", async () => {
+      await createInstance("branding-noop-org");
+      const url =
+        "/api/v1/instances/branding-noop-org/branding?confirm=branding-noop-org";
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ branding: "codo" })
+        .expect(200);
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ branding: "codo" })
+        .expect(200);
+
+      await new Promise(setImmediate);
+      expect(mockDispatch).not.toHaveBeenCalled();
+    });
+
+    // The service stores a name it cannot verify: which sets exist is decided
+    // by the infrastructure, which falls back to the default icons for one it
+    // does not have.
+    it("should accept a name this service cannot know", async () => {
+      await createInstance("branding-unknown-org");
+
+      await request(app.getHttpServer())
+        .patch(
+          "/api/v1/instances/branding-unknown-org/branding?confirm=branding-unknown-org",
+        )
+        .send({ branding: "not-a-real-set" })
+        .expect(200);
+
+      expect(await manifestBranding("branding-unknown-org")).toBe(
+        "not-a-real-set",
+      );
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
   // GET /api/v1/instances/check/:name
   // ────────────────────────────────────────────────────────────────────
 

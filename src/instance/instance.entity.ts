@@ -117,6 +117,27 @@ export function parseStorageLimitBytes(value: string): number {
 }
 
 /**
+ * Shape a `branding` value must match: a lowercase name, as the infrastructure
+ * names the sets of icons it can deploy an instance with.
+ *
+ * Only the shape. Which names exist is decided by the infrastructure and is
+ * deliberately not enumerated here — see `BRANDING_DESCRIPTION`.
+ */
+export const BRANDING_PATTERN = /^[a-z0-9][a-z0-9-]{0,31}$/;
+
+/**
+ * API docs shared with all DTOs that expose `branding` for consistency.
+ */
+export const BRANDING_DESCRIPTION =
+  "The set of icons the instance is served with — its favicon and the icons " +
+  "a browser uses when the app is installed — instead of the defaults. " +
+  "Which sets exist is decided by the infrastructure, so a name accepted " +
+  "here can still turn out to be unknown when it is applied, and the " +
+  "instance is then served with the default icons. Everything inside the " +
+  "app, such as its logo, name and colours, is configured in the instance " +
+  "itself rather than here.";
+
+/**
  * The components of an instance whose version can be set, each named after its
  * image. Which of them the deployment actually applies a version to is decided
  * there; a component it does not deploy per instance ignores the value.
@@ -237,6 +258,20 @@ export class Instance {
    */
   @Column({ type: "simple-json", nullable: true })
   versions: InstanceVersions | null;
+
+  /**
+   * The icon set the instance is served with, a `BRANDING_PATTERN` value.
+   * `null` — the normal case — serves the defaults.
+   *
+   * Deliberately without a `CHECK` constraint, unlike `status` and `mode`:
+   * the sets live in the infrastructure repository, so enumerating them here
+   * would mean a release of this service for every one that is added. An
+   * unknown name is safe in a way an unknown mode is not — the infrastructure
+   * deploys the instance with the default icons and warns, rather than being
+   * unable to act on it at all.
+   */
+  @Column({ type: "varchar", length: 32, nullable: true })
+  branding: string | null;
 
   @CreateDateColumn({ name: "created_at" })
   createdAt: Date;
