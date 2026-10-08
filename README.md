@@ -98,6 +98,24 @@ moving tag pins that component until it is changed again. Which components it
 applies a version to is decided there — one it does not deploy per instance
 ignores the value.
 
+### Features
+
+`features` are the optional parts of an instance's stack that are on:
+`permissions` (permission checks on every read and write), `backend` (the
+server-side API) and its modules `reporting`, `export` and `notifications`,
+e.g. `{ "permissions": true, "backend": true }`. `null` until one is switched
+on, and changed through `PATCH /api/v1/instances/:name/features`: a feature in
+the body is switched on with `true` or off with `false`, and the others keep
+their value.
+
+A feature needs the one before it — the backend needs permissions, and each
+module the backend — and a request that would leave one without it is refused
+rather than stored, since the [cluster deployment][infra] could not deploy it.
+Switch a prerequisite off together with what needs it. What each feature
+deploys is decided there. Each costs server resources, which is why all are
+off by default and only the admin password can change them. Turning one off
+deletes no data.
+
 ### Confirming the target
 
 Every admin route that writes to an existing instance
