@@ -5,6 +5,7 @@ export { InstanceResponseDto } from "./instance-response.dto";
 export { UpdateAppConfigDto } from "./update-app-config.dto";
 export { UpdateStorageDto } from "./update-storage.dto";
 export { UpdateVersionsDto } from "./update-versions.dto";
+export { UpdateFeaturesDto } from "./update-features.dto";
 export {
   ListInstancesQueryDto,
   INSTANCE_STATUS_FILTERS,
