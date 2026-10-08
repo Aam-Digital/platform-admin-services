@@ -9,6 +9,9 @@ import {
   STORAGE_LIMIT_DESCRIPTION,
   VERSION_COMPONENTS,
   VERSIONS_DESCRIPTION,
+  FEATURES,
+  FEATURES_DESCRIPTION,
+  type InstanceFeatures,
   type InstanceVersions,
 } from "../instance.entity";
 
@@ -70,4 +73,15 @@ export class InstanceResponseDto {
     example: { "ndb-core": "stable" },
   })
   versions: InstanceVersions | null;
+
+  @ApiProperty({
+    description: `${FEATURES_DESCRIPTION} \`null\` when none is on.`,
+    type: "object",
+    properties: Object.fromEntries(
+      FEATURES.map((feature) => [feature, { type: "boolean", enum: [true] }]),
+    ),
+    nullable: true,
+    example: { permissions: true },
+  })
+  features: InstanceFeatures | null;
 }

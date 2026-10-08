@@ -1078,6 +1078,86 @@ describe("Instances (e2e)", () => {
   });
 
   // ────────────────────────────────────────────────────────────────────
+  // PATCH /api/v1/instances/:name/features
+  // ────────────────────────────────────────────────────────────────────
+
+  describe("PATCH /api/v1/instances/:name/features", () => {
+    async function createInstance(name: string): Promise<void> {
+      await request(app.getHttpServer())
+        .post("/api/v1/instances")
+        .send({ name, ownerEmail: `${name}@example.com` })
+        .expect(201);
+    }
+
+    async function manifestFeatures(name: string): Promise<unknown> {
+      const res = await request(app.getHttpServer())
+        .get("/api/v1/instances")
+        .expect(200);
+      return res.body.find((i: any) => i.name === name).features;
+    }
+
+    it("should default a new instance to no features", async () => {
+      await createInstance("features-default-org");
+
+      expect(await manifestFeatures("features-default-org")).toBeNull();
+    });
+
+    it("should switch features on and off", async () => {
+      await createInstance("features-org");
+      const url =
+        "/api/v1/instances/features-org/features?confirm=features-org";
+      mockDispatch.mockClear();
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ permissions: true })
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.features).toEqual({ permissions: true });
+        });
+      await new Promise(setImmediate);
+      expect(mockDispatch).toHaveBeenCalledTimes(1);
+
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ permissions: false })
+        .expect(200);
+      expect(await manifestFeatures("features-org")).toBeNull();
+    });
+
+    it.each([
+      { label: "empty", body: {} },
+      { label: "unknown-feature", body: { sqs: true } },
+      { label: "not-a-boolean", body: { permissions: "yes" } },
+      { label: "null", body: { permissions: null } },
+    ])(
+      "should reject a $label body, keeping what is stored",
+      async ({ label, body }) => {
+        const name = `features-${label}-org`;
+        const url = `/api/v1/instances/${name}/features?confirm=${name}`;
+        await createInstance(name);
+        await request(app.getHttpServer())
+          .patch(url)
+          .send({ permissions: true })
+          .expect(200);
+
+        await request(app.getHttpServer()).patch(url).send(body).expect(400);
+
+        expect(await manifestFeatures(name)).toEqual({ permissions: true });
+      },
+    );
+
+    it("should require confirm", async () => {
+      await createInstance("features-confirm-org");
+
+      await request(app.getHttpServer())
+        .patch("/api/v1/instances/features-confirm-org/features")
+        .send({ permissions: true })
+        .expect(400);
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────
   // PATCH /api/v1/instances/:name/versions
   // ────────────────────────────────────────────────────────────────────
 
