@@ -2,15 +2,20 @@ name: On Semantic Release (build & publish image)
 
 on:
   release:
-    types: [released]
+    types: [published] # created with the GH_TOKEN PAT, releases by the GITHUB_TOKEN trigger no workflows
+
+permissions: {}
 
 jobs:
+  # Check name: `build / build`
   build:
-    uses: ./.github/workflows/_build.yml
-    with:
-      docker_tags: |
-        type=raw,value=${{ github.event.release.tag_name }}
-        type=raw,value=latest
+    uses: Aam-Digital/.github/.github/workflows/docker-image.yml@feat/reusable-workflows # TODO switch to @v1
     permissions:
       contents: read
       packages: write
+    with:
+      images: ghcr.io/aam-digital/platform-admin-services
+      # Tag `<version>` (e.g. `v1.7.4`, also the `org.opencontainers.image.version` label);
+      # full releases also `stable` and `latest`
+      version: ${{ github.event.release.tag_name }}
+      stable: ${{ !github.event.release.prerelease }}
