@@ -19,3 +19,12 @@ jobs:
       # full releases also `stable` and `latest`
       version: ${{ github.event.release.tag_name }}
       stable: ${{ !github.event.release.prerelease }}
+
+  # After a full release, the edge images (`*-edge.*`) of the finished cycle are no longer needed. The image `edge`
+  # points to is kept.
+  prune-edge-images:
+    if: ${{ !github.event.release.prerelease }}
+    needs: build
+    uses: Aam-Digital/.github/.github/workflows/image-prune.yml@feat/reusable-workflows # TODO switch to @v1
+    permissions:
+      packages: write

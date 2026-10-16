@@ -48,7 +48,31 @@ jobs:
     uses: Aam-Digital/.github/.github/workflows/release.yml@feat/reusable-workflows # TODO switch to @v1
     permissions:
       contents: read # everything that writes uses the GH_TOKEN PAT (its releases trigger the image build)
-    with:
-      type: release
     secrets:
       token: ${{ secrets.GH_TOKEN }}
+
+  # Edge build of every main push (see Aam-Digital/.github): version `vX.Y.Z-edge.N` (the last release with the patch
+  # number bumped, plus the commits since), no tag and no GitHub release.
+  edge-version:
+    if: github.ref == 'refs/heads/main'
+    needs:
+      - test
+    uses: Aam-Digital/.github/.github/workflows/edge-version.yml@feat/reusable-workflows # TODO switch to @v1
+    permissions:
+      contents: read
+
+  # Check name: `edge-build / build`. Image `vX.Y.Z-edge.N`, plus `edge` if this is still the newest main commit.
+  # A newer push cancels an older edge build, so that `edge` never moves back.
+  edge-build:
+    needs: edge-version
+    concurrency:
+      group: edge-build
+      cancel-in-progress: true
+    uses: Aam-Digital/.github/.github/workflows/docker-image.yml@feat/reusable-workflows # TODO switch to @v1
+    permissions:
+      contents: read
+      packages: write
+    with:
+      images: ghcr.io/aam-digital/platform-admin-services
+      version: ${{ needs.edge-version.outputs.version }}
+      tags: ${{ needs.edge-version.outputs.is-head == 'true' && 'edge' || '' }}
