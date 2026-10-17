@@ -39,6 +39,7 @@ import {
   UpdateAppConfigDto,
   UpdateStorageDto,
   UpdateVersionsDto,
+  UpdateBrandingDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
@@ -326,6 +327,44 @@ export class InstanceController {
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
     return this.instanceService.updateVersions(name, dto, confirm);
+  }
+
+  @Patch(":name/branding")
+  @UseGuards(BasicAuthGuard)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Set the icon set an instance is served with",
+    description:
+      "Sets which icons the instance is served with instead of the " +
+      "defaults, or with `null` goes back to them. Which sets exist is " +
+      "decided by the infrastructure, so a name accepted here can still " +
+      "turn out to be unknown when it is applied — the instance is then " +
+      "served with the default icons. `confirm` is required as on every " +
+      "write to an existing instance.",
+    operationId: "updateInstanceBranding",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description: "Updated instance.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description: "Missing or mismatched `confirm`, or a malformed value.",
+  })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description: "The instance was deleted while the request was in flight.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async updateBranding(
+    @Param("name") name: string,
+    @Body() dto: UpdateBrandingDto,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.updateBranding(name, dto.branding, confirm);
   }
 
   @Delete(":name")
