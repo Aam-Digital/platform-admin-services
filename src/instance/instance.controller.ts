@@ -39,6 +39,7 @@ import {
   UpdateAppConfigDto,
   UpdateStorageDto,
   UpdateVersionsDto,
+  UpdateFeaturesDto,
 } from "./dto";
 import { BrevoWebhookGuard } from "./guards/brevo-webhook.guard";
 import { InstanceService } from "./instance.service";
@@ -326,6 +327,45 @@ export class InstanceController {
     @Query("confirm") confirm?: string,
   ): Promise<InstanceResponseDto> {
     return this.instanceService.updateVersions(name, dto, confirm);
+  }
+
+  @Patch(":name/features")
+  @UseGuards(BasicAuthGuard)
+  @ApiBasicAuth()
+  @ApiOperation({
+    summary: "Switch an instance's features on or off",
+    description:
+      "Switches each feature in the body on (`true`) or off (`false`); the " +
+      "others keep what is stored. A result in which a feature lacks its " +
+      "prerequisite is refused. `confirm` is required as on every write to " +
+      "an existing instance.",
+    operationId: "updateInstanceFeatures",
+  })
+  @ApiParam({ name: "name", description: "The instance name (subdomain)." })
+  @ApiQuery(CONFIRM_QUERY)
+  @ApiOkResponse({
+    description: "Updated instance.",
+    type: InstanceResponseDto,
+  })
+  @ApiBadRequestResponse({
+    description:
+      "Missing or mismatched `confirm`, no feature in the body, an unknown " +
+      "feature, a value that is not a boolean, or a feature left without its " +
+      "prerequisite.",
+  })
+  @ApiNotFoundResponse({ description: "No such instance." })
+  @ApiConflictResponse({
+    description: "The instance was deleted while the request was in flight.",
+  })
+  @ApiUnauthorizedResponse({
+    description: "Admin Basic auth credentials required.",
+  })
+  async updateFeatures(
+    @Param("name") name: string,
+    @Body() dto: UpdateFeaturesDto,
+    @Query("confirm") confirm?: string,
+  ): Promise<InstanceResponseDto> {
+    return this.instanceService.updateFeatures(name, dto, confirm);
   }
 
   @Delete(":name")
