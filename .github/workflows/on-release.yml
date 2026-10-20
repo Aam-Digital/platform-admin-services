@@ -15,10 +15,12 @@ jobs:
       packages: write
     with:
       images: ghcr.io/aam-digital/platform-admin-services
-      # Tag `<version>` (e.g. `v1.7.4`, also the `org.opencontainers.image.version` label);
+      # Tag `<version>` (e.g. `1.7.7`, also the `org.opencontainers.image.version` label);
       # full releases also `stable` and `latest`
       version: ${{ github.event.release.tag_name }}
       stable: ${{ !github.event.release.prerelease }}
+      # package.json's version is what the app reports to Sentry
+      prepare: npm version "$VERSION" --no-git-tag-version --allow-same-version
 
   # After a full release, the edge images (`*-edge.*`) of the finished cycle are no longer needed. The image `edge`
   # points to is kept.

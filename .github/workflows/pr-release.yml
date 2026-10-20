@@ -43,3 +43,6 @@ jobs:
       platforms: linux/amd64
       # PRs from forks cannot push; only check that the image builds
       push: ${{ github.event.pull_request.head.repo.full_name == github.repository }}
+      # package.json's version is what the app reports to Sentry. npm only accepts semver, hence `0.0.0-pr.<n>`;
+      # the image's version label is its tag `pr-<n>`.
+      prepare: npm version "0.0.0-pr.${{ github.event.number }}" --no-git-tag-version --allow-same-version

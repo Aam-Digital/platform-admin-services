@@ -51,7 +51,7 @@ jobs:
     secrets:
       token: ${{ secrets.GH_TOKEN }}
 
-  # Edge build of every main push (see Aam-Digital/.github): version `vX.Y.Z-edge.N` (the last release with the patch
+  # Edge build of every main push (see Aam-Digital/.github): version `X.Y.Z-edge.N` (the last release with the patch
   # number bumped, plus the commits since), no tag and no GitHub release.
   edge-version:
     if: github.ref == 'refs/heads/main'
@@ -61,7 +61,7 @@ jobs:
     permissions:
       contents: read
 
-  # Check names: `edge-build / build (<platform>)`, `edge-build / merge`. Image `vX.Y.Z-edge.N`, plus `edge` if this is still the newest main commit.
+  # Check names: `edge-build / build (<platform>)`, `edge-build / merge`. Image `X.Y.Z-edge.N`, plus `edge` if this is still the newest main commit.
   # A newer push cancels an older edge build, so that `edge` never moves back.
   edge-build:
     needs: edge-version
@@ -76,3 +76,5 @@ jobs:
       images: ghcr.io/aam-digital/platform-admin-services
       version: ${{ needs.edge-version.outputs.version }}
       tags: ${{ needs.edge-version.outputs.is-head == 'true' && 'edge' || '' }}
+      # package.json's version is what the app reports to Sentry
+      prepare: npm version "$VERSION" --no-git-tag-version --allow-same-version
