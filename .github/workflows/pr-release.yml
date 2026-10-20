@@ -30,7 +30,7 @@ jobs:
       - name: Run e2e tests
         run: npm run test:e2e
 
-  # Check name: `build / build`
+  # Check names: `build / build (linux/amd64)`, `build / merge`
   build:
     needs: test
     uses: Aam-Digital/.github/.github/workflows/docker-image.yml@feat/reusable-workflows # TODO switch to @v1

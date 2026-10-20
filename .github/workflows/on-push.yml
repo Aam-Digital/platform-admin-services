@@ -61,7 +61,7 @@ jobs:
     permissions:
       contents: read
 
-  # Check name: `edge-build / build`. Image `vX.Y.Z-edge.N`, plus `edge` if this is still the newest main commit.
+  # Check names: `edge-build / build (<platform>)`, `edge-build / merge`. Image `vX.Y.Z-edge.N`, plus `edge` if this is still the newest main commit.
   # A newer push cancels an older edge build, so that `edge` never moves back.
   edge-build:
     needs: edge-version
