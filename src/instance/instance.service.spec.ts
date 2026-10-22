@@ -601,6 +601,92 @@ describe("InstanceService", () => {
     });
   });
 
+  describe("updateBranding", () => {
+    function givenStored(branding: string | null): Instance {
+      const instance = { name: "my-org", branding } as Instance;
+      repo.findOneBy.mockResolvedValue(instance);
+      return instance;
+    }
+
+    it.each<[string | null, string | null]>([
+      // stored, requested
+      [null, "codo"],
+      ["codo", "other"],
+      ["codo", null],
+    ])("should write %j -> %j", async (stored, requested) => {
+      givenStored(stored);
+
+      await service.updateBranding("my-org", requested, "my-org");
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { branding: requested },
+      );
+    });
+
+    // A name this service has never heard of is still stored: which sets exist
+    // is the infrastructure's to know, and it deploys the default icons for one
+    // it does not have.
+    it("should store a name it cannot know", async () => {
+      givenStored(null);
+
+      await service.updateBranding("my-org", "not-a-real-set", "my-org");
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { branding: "not-a-real-set" },
+      );
+    });
+
+    it.each<[string | null, string | null]>([
+      [null, null],
+      ["codo", "codo"],
+    ])(
+      "should not deploy when %j is stored and %j requested",
+      async (stored, requested) => {
+        const instance = givenStored(stored);
+
+        const result = await service.updateBranding(
+          "my-org",
+          requested,
+          "my-org",
+        );
+
+        expect(result).toBe(instance);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each([undefined, "other-org"])(
+      "should reject confirm=%p",
+      async (confirm) => {
+        givenStored(null);
+
+        await expect(
+          service.updateBranding("my-org", "codo", confirm),
+        ).rejects.toThrow(BadRequestException);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should throw NotFoundException for an unknown instance", async () => {
+      repo.findOneBy.mockResolvedValue(null);
+
+      await expect(
+        service.updateBranding("nope", "codo", "nope"),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it("should throw ConflictException when the row went away", async () => {
+      givenStored(null);
+      repo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await expect(
+        service.updateBranding("my-org", "codo", "my-org"),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe("create", () => {
     it("should create a new instance", async () => {
       const dto = { name: "new-org", ownerEmail: "a@b.com" };

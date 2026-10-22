@@ -508,6 +508,57 @@ export class InstanceService implements OnModuleInit {
   }
 
   /**
+   * Sets, or with `null` unsets, the icon set the instance is served with.
+   * The value is expected to already match `BRANDING_PATTERN` — enforced by
+   * `UpdateBrandingDto`, not re-checked here.
+   *
+   * Whether the name is one the infrastructure has is not knowable here, by
+   * design: an unknown one is deployed with the default icons and warned
+   * about there. See the column's comment in `instance.entity.ts`.
+   *
+   * @param confirm must repeat `name`, as on every write to an existing
+   *   instance.
+   */
+  async updateBranding(
+    name: string,
+    branding: string | null,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    // No deployment for a request that asks for what is already stored, as in
+    // `updateAppConfig`.
+    if (branding === (instance.branding ?? null)) {
+      return instance;
+    }
+
+    // Conditional on the row still existing only, as in `updateVersions`: a
+    // lost update here means the wrong icons, not a destroyed instance.
+    const updated = await this.instanceRepo.update({ name }, { branding });
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    this.logger.warn("Instance branding changed", {
+      name: saved.name,
+      branding: saved.branding,
+      previousBranding: instance.branding,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
    * Deletes the record of an already hibernated instance, freeing its name.
    *
    * No deployment is triggered: an inactive instance is out of the manifest

@@ -98,6 +98,22 @@ moving tag pins that component until it is changed again. Which components it
 applies a version to is decided there — one it does not deploy per instance
 ignores the value.
 
+### Branding
+
+`branding` names the set of icons an instance is served with — its favicon and
+the icons a browser uses once the app is installed — instead of the defaults.
+`null` until set, and changed through
+`PATCH /api/v1/instances/:name/branding`, with `null` going back to the
+defaults.
+
+Which sets exist is decided by the [cluster deployment][infra], which holds the
+images, so this service stores the name without being able to check it: one it
+does not have is served with the default icons there. Enumerating them here
+would mean releasing this service for every set that is added.
+
+Everything inside the app — its logo, name, colours and fonts — is configured
+in the instance itself and has nothing to do with this field.
+
 ### Confirming the target
 
 Every admin route that writes to an existing instance
