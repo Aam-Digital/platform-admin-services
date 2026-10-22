@@ -7,8 +7,13 @@ import { ConfigModule, ConfigService } from "@nestjs/config";
 import { Test, TestingModule } from "@nestjs/testing";
 import { getRepositoryToken } from "@nestjs/typeorm";
 import { IsNull, Repository } from "typeorm";
-import { Instance, type InstanceVersions } from "./instance.entity";
+import {
+  Instance,
+  type InstanceFeatures,
+  type InstanceVersions,
+} from "./instance.entity";
 import { UpdateVersionsDto } from "./dto/update-versions.dto";
+import { UpdateFeaturesDto } from "./dto/update-features.dto";
 import { InstanceService } from "./instance.service";
 
 describe("InstanceService", () => {
@@ -597,6 +602,113 @@ describe("InstanceService", () => {
 
       await expect(
         service.updateVersions("my-org", { "ndb-core": "stable" }, "my-org"),
+      ).rejects.toThrow(ConflictException);
+    });
+  });
+
+  describe("updateFeatures", () => {
+    function givenStored(features: InstanceFeatures | null): Instance {
+      const instance = { name: "my-org", features } as Instance;
+      repo.findOneBy.mockResolvedValue(instance);
+      return instance;
+    }
+
+    it.each<
+      [InstanceFeatures | null, UpdateFeaturesDto, InstanceFeatures | null]
+    >([
+      // stored, requested, written
+      [null, { permissions: true }, { permissions: true }],
+      [
+        { permissions: true },
+        { backend: true, export: true },
+        { permissions: true, backend: true, export: true },
+      ],
+      [
+        { permissions: true, backend: true, export: true },
+        { export: false },
+        { permissions: true, backend: true },
+      ],
+      // switching a prerequisite off together with what needs it
+      [
+        { permissions: true, backend: true },
+        { backend: false, permissions: false },
+        null,
+      ],
+    ])(
+      "should merge %j with %j into %j",
+      async (stored, requested, written) => {
+        givenStored(stored);
+
+        await service.updateFeatures("my-org", requested, "my-org");
+
+        expect(repo.update).toHaveBeenCalledWith(
+          { name: "my-org" },
+          { features: written },
+        );
+      },
+    );
+
+    it.each<[InstanceFeatures | null, UpdateFeaturesDto]>([
+      [null, { backend: true }],
+      [{ permissions: true, backend: true }, { permissions: false }],
+      [{ permissions: true }, { reporting: true }],
+    ])(
+      "should refuse %j with %j, which leaves a feature without its prerequisite",
+      async (stored, requested) => {
+        givenStored(stored);
+
+        await expect(
+          service.updateFeatures("my-org", requested, "my-org"),
+        ).rejects.toThrow(BadRequestException);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it.each<[InstanceFeatures | null, UpdateFeaturesDto]>([
+      [null, { permissions: false }],
+      [{ permissions: true }, { permissions: true }],
+    ])(
+      "should not deploy when %j is stored and %j requested",
+      async (stored, requested) => {
+        const instance = givenStored(stored);
+
+        const result = await service.updateFeatures(
+          "my-org",
+          requested,
+          "my-org",
+        );
+
+        expect(result).toBe(instance);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should reject a request that names no feature", async () => {
+      givenStored(null);
+
+      await expect(
+        service.updateFeatures("my-org", {}, "my-org"),
+      ).rejects.toThrow(BadRequestException);
+    });
+
+    it.each([undefined, "other-org"])(
+      "should reject confirm=%p",
+      async (confirm) => {
+        givenStored(null);
+
+        await expect(
+          service.updateFeatures("my-org", { permissions: true }, confirm),
+        ).rejects.toThrow(BadRequestException);
+        expect(repo.update).not.toHaveBeenCalled();
+      },
+    );
+
+    it("should throw ConflictException when the row went away", async () => {
+      givenStored(null);
+      repo.update.mockResolvedValue({ affected: 0 } as never);
+
+      await expect(
+        service.updateFeatures("my-org", { permissions: true }, "my-org"),
       ).rejects.toThrow(ConflictException);
     });
   });

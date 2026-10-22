@@ -13,6 +13,7 @@ import { CreateInstances1745400000000 } from "./migrations/1745400000000-CreateI
 import { AddInstanceAppConfig1787270400000 } from "./migrations/1787270400000-AddInstanceAppConfig";
 import { AddInstanceStorageLimit1789689600000 } from "./migrations/1789689600000-AddInstanceStorageLimit";
 import { AddInstanceVersions1790294400000 } from "./migrations/1790294400000-AddInstanceVersions";
+import { AddInstanceFeatures1791504000000 } from "./migrations/1791504000000-AddInstanceFeatures";
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { AddInstanceVersions1790294400000 } from "./migrations/1790294400000-Add
           AddInstanceAppConfig1787270400000,
           AddInstanceStorageLimit1789689600000,
           AddInstanceVersions1790294400000,
+          AddInstanceFeatures1791504000000,
         ],
         migrationsRun: config.get<string>("NODE_ENV") === "production",
         synchronize: config.get<string>("NODE_ENV") !== "production",
