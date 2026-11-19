@@ -25,9 +25,13 @@ import {
   STORAGE_LIMIT_PATTERN,
   VERSION_COMPONENTS,
   type InstanceVersions,
+  FEATURES,
+  FEATURE_PREREQUISITES,
+  type InstanceFeatures,
 } from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 import { UpdateVersionsDto } from "./dto/update-versions.dto";
+import { UpdateFeaturesDto } from "./dto/update-features.dto";
 
 /**
  * Names that must not be used as instance subdomains.
@@ -420,6 +424,89 @@ export class InstanceService implements OnModuleInit {
       name: saved.name,
       storageLimit: saved.storageLimit,
       previousStorageLimit: instance.storageLimit,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
+   * Switches each feature present in `dto` on or off, keeping the others, and
+   * refuses a result in which a feature lacks its prerequisite — whichever of
+   * the two the request changed — since the deployment could not deploy it.
+   *
+   * @param confirm must repeat `name`, as on every write to an existing
+   *   instance.
+   */
+  async updateFeatures(
+    name: string,
+    dto: UpdateFeaturesDto,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    if (FEATURES.every((feature) => dto[feature] === undefined)) {
+      throw new BadRequestException(
+        `Nothing to change: pass at least one of ${FEATURES.map((f) => `"${f}"`).join(", ")}.`,
+      );
+    }
+
+    // Built in `FEATURES` order, with the features that are off left out, so
+    // there is one stored form per state.
+    const features: InstanceFeatures = {};
+    for (const feature of FEATURES) {
+      const on = dto[feature] ?? instance.features?.[feature] === true;
+      if (on) {
+        features[feature] = true;
+      }
+    }
+
+    for (const feature of FEATURES) {
+      const prerequisite = FEATURE_PREREQUISITES[feature];
+      if (features[feature] && prerequisite && !features[prerequisite]) {
+        throw new BadRequestException(
+          `"${feature}" needs "${prerequisite}", which would be off.`,
+        );
+      }
+    }
+
+    // No deployment for a request that asks for what is already stored, as in
+    // `updateVersions`.
+    if (
+      FEATURES.every(
+        (feature) =>
+          (features[feature] ?? false) ===
+          (instance.features?.[feature] ?? false),
+      )
+    ) {
+      return instance;
+    }
+
+    // Conditional on the row still existing only, as in `updateVersions`.
+    const updated = await this.instanceRepo.update(
+      { name },
+      // Replaced whole, see `updateAppConfig`.
+      {
+        features: Object.keys(features).length === 0 ? null : features,
+      } as QueryDeepPartialEntity<Instance>,
+    );
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    this.logger.warn("Instance features changed", {
+      name: saved.name,
+      features: saved.features,
+      previousFeatures: instance.features,
     });
 
     this.dispatchInstanceDeployment().catch((err: unknown) => {
