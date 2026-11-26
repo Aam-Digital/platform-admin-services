@@ -348,8 +348,8 @@ export class InstanceController {
   })
   @ApiBadRequestResponse({
     description:
-      "Missing or mismatched `confirm`, no feature in the body, an unknown " +
-      "feature, or a value that is not a boolean.",
+      "Missing or mismatched `confirm`, an unknown feature, or a value that " +
+      "is not a boolean.",
   })
   @ApiNotFoundResponse({ description: "No such instance." })
   @ApiConflictResponse({

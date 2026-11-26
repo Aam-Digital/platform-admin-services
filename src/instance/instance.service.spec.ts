@@ -613,29 +613,32 @@ describe("InstanceService", () => {
       return instance;
     }
 
-    it.each<
-      [InstanceFeatures | null, UpdateFeaturesDto, InstanceFeatures | null]
-    >([
-      // stored, requested, written
-      [null, { permissions: true }, { permissions: true }],
-      [{ permissions: true }, { permissions: false }, null],
-    ])(
-      "should merge %j with %j into %j",
-      async (stored, requested, written) => {
-        givenStored(stored);
+    it("should switch a feature on", async () => {
+      givenStored(null);
 
-        await service.updateFeatures("my-org", requested, "my-org");
+      await service.updateFeatures("my-org", { permissions: true }, "my-org");
 
-        expect(repo.update).toHaveBeenCalledWith(
-          { name: "my-org" },
-          { features: written },
-        );
-      },
-    );
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { features: { permissions: true } },
+      );
+    });
+
+    it("should store null when the last feature is switched off", async () => {
+      givenStored({ permissions: true });
+
+      await service.updateFeatures("my-org", { permissions: false }, "my-org");
+
+      expect(repo.update).toHaveBeenCalledWith(
+        { name: "my-org" },
+        { features: null },
+      );
+    });
 
     it.each<[InstanceFeatures | null, UpdateFeaturesDto]>([
       [null, { permissions: false }],
       [{ permissions: true }, { permissions: true }],
+      [{ permissions: true }, {}],
     ])(
       "should not deploy when %j is stored and %j requested",
       async (stored, requested) => {
@@ -651,14 +654,6 @@ describe("InstanceService", () => {
         expect(repo.update).not.toHaveBeenCalled();
       },
     );
-
-    it("should reject a request that names no feature", async () => {
-      givenStored(null);
-
-      await expect(
-        service.updateFeatures("my-org", {}, "my-org"),
-      ).rejects.toThrow(BadRequestException);
-    });
 
     it.each([undefined, "other-org"])(
       "should reject confirm=%p",

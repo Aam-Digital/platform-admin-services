@@ -1126,7 +1126,6 @@ describe("Instances (e2e)", () => {
     });
 
     it.each([
-      { label: "empty", body: {} },
       { label: "unknown-feature", body: { sqs: true } },
       { label: "not-a-boolean", body: { permissions: "yes" } },
       { label: "null", body: { permissions: null } },
@@ -1146,6 +1145,22 @@ describe("Instances (e2e)", () => {
         expect(await manifestFeatures(name)).toEqual({ permissions: true });
       },
     );
+
+    it("should keep what is stored for an empty body", async () => {
+      await createInstance("features-empty-org");
+      const url =
+        "/api/v1/instances/features-empty-org/features?confirm=features-empty-org";
+      await request(app.getHttpServer())
+        .patch(url)
+        .send({ permissions: true })
+        .expect(200);
+
+      await request(app.getHttpServer()).patch(url).send({}).expect(200);
+
+      expect(await manifestFeatures("features-empty-org")).toEqual({
+        permissions: true,
+      });
+    });
 
     it("should require confirm", async () => {
       await createInstance("features-confirm-org");

@@ -1,3 +1,4 @@
+import * as util from "node:util";
 import {
   BadRequestException,
   ConflictException,
@@ -25,8 +26,6 @@ import {
   STORAGE_LIMIT_PATTERN,
   VERSION_COMPONENTS,
   type InstanceVersions,
-  FEATURES,
-  type InstanceFeatures,
 } from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 import { UpdateVersionsDto } from "./dto/update-versions.dto";
@@ -449,41 +448,16 @@ export class InstanceService implements OnModuleInit {
     const instance = await this.findOneOrFail(name);
     this.assertNameConfirmed(name, confirm);
 
-    if (FEATURES.every((feature) => dto[feature] === undefined)) {
-      throw new BadRequestException(
-        `Nothing to change: pass at least one of ${FEATURES.map((f) => `"${f}"`).join(", ")}.`,
-      );
-    }
+    const features = dropFalseValues({ ...instance.features, ...dto });
+    const updatedFeatures = Object.keys(features).length ? features : null;
 
-    // Built in `FEATURES` order, with the features that are off left out, so
-    // there is one stored form per state.
-    const features: InstanceFeatures = {};
-    for (const feature of FEATURES) {
-      const on = dto[feature] ?? instance.features?.[feature] === true;
-      if (on) {
-        features[feature] = true;
-      }
-    }
-
-    // No deployment for a request that asks for what is already stored, as in
-    // `updateVersions`.
-    if (
-      FEATURES.every(
-        (feature) =>
-          (features[feature] ?? false) ===
-          (instance.features?.[feature] ?? false),
-      )
-    ) {
+    if (util.isDeepStrictEqual(instance.features, updatedFeatures)) {
       return instance;
     }
 
-    // Conditional on the row still existing only, as in `updateVersions`.
     const updated = await this.instanceRepo.update(
       { name },
-      // Replaced whole, see `updateAppConfig`.
-      {
-        features: Object.keys(features).length === 0 ? null : features,
-      } as QueryDeepPartialEntity<Instance>,
+      { features: updatedFeatures },
     );
     if (updated.affected === 0) {
       throw new ConflictException(RACE_MESSAGE(name));
@@ -718,4 +692,22 @@ export class InstanceService implements OnModuleInit {
 
     return { name, available: true, reason: null };
   }
+}
+
+/**
+ * Takes an object with boolean values and returns a new object with false
+ * values dropped.
+ */
+function dropFalseValues(
+  object: Record<string, boolean>,
+): Record<string, true> {
+  return Object.fromEntries(
+    Object.entries(object).flatMap(([key, value]) => {
+      if (value === true) {
+        return [[key, value]] as const;
+      } else {
+        return [];
+      }
+    }),
+  );
 }

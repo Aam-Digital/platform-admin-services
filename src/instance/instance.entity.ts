@@ -155,7 +155,7 @@ export const VERSIONS_DESCRIPTION =
  */
 export const FEATURES = ["permissions"] as const;
 
-export type Feature = (typeof FEATURES)[number];
+type Feature = (typeof FEATURES)[number];
 
 /** Stored with only the features that are on, each `true`. */
 export type InstanceFeatures = Partial<Record<Feature, true>>;
@@ -164,9 +164,7 @@ export type InstanceFeatures = Partial<Record<Feature, true>>;
  * API docs shared with all DTOs that expose `features` for consistency.
  */
 export const FEATURES_DESCRIPTION =
-  "The optional parts of the instance's stack that are on: `permissions` " +
-  "(permission checks on every read and write). Each costs server " +
-  "resources, so they are off by default. Turning one off deletes no data.";
+  "Optional features enabled for an instance.";
 
 @Entity("instances")
 // Any other value reads as "not active" and therefore as "destroy this
@@ -257,13 +255,6 @@ export class Instance {
   @Column({ type: "simple-json", nullable: true })
   versions: InstanceVersions | null;
 
-  /**
-   * The features that are on, each `true`; `null` — the normal case — when
-   * none is. An object never holds `false`: a feature that is off is left
-   * out, so there is one stored form per state.
-   *
-   * `simple-json` rather than `jsonb`, as with `versions`.
-   */
   @Column({ type: "simple-json", nullable: true })
   features: InstanceFeatures | null;
 

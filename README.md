@@ -100,15 +100,12 @@ ignores the value.
 
 ### Features
 
-`features` are the optional parts of an instance's stack that are on:
+`features` switch optional parts of an instance's stack on or off:
 `permissions` (permission checks on every read and write), e.g.
-`{ "permissions": true }`. `null` until one is switched on, and changed through
-`PATCH /api/v1/instances/:name/features`: a feature in the body is switched on
-with `true` or off with `false`, and the others keep their value.
+`{ "permissions": true }`. A missing feature, or `null`, means off. Changed through
+`PATCH /api/v1/instances/:name/features`.
 
-What each feature deploys is decided by the [cluster deployment][infra]. Each
-costs server resources, which is why all are off by default and only the admin
-password can change them. Turning one off deletes no data.
+What each feature deploys is decided by the [cluster deployment][infra].
 
 ### Confirming the target
 
