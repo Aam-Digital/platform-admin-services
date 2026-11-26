@@ -1,3 +1,4 @@
+import * as util from "node:util";
 import {
   BadRequestException,
   ConflictException,
@@ -28,6 +29,7 @@ import {
 } from "./instance.entity";
 import { UpdateAppConfigDto } from "./dto/update-app-config.dto";
 import { UpdateVersionsDto } from "./dto/update-versions.dto";
+import { UpdateFeaturesDto } from "./dto/update-features.dto";
 
 /**
  * Names that must not be used as instance subdomains.
@@ -433,6 +435,53 @@ export class InstanceService implements OnModuleInit {
   }
 
   /**
+   * Switches each feature present in `dto` on or off, keeping the others.
+   *
+   * @param confirm must repeat `name`, as on every write to an existing
+   *   instance.
+   */
+  async updateFeatures(
+    name: string,
+    dto: UpdateFeaturesDto,
+    confirm: string | undefined,
+  ): Promise<Instance> {
+    const instance = await this.findOneOrFail(name);
+    this.assertNameConfirmed(name, confirm);
+
+    const features = dropFalseValues({ ...instance.features, ...dto });
+    const updatedFeatures = Object.keys(features).length ? features : null;
+
+    if (util.isDeepStrictEqual(instance.features, updatedFeatures)) {
+      return instance;
+    }
+
+    const updated = await this.instanceRepo.update(
+      { name },
+      { features: updatedFeatures },
+    );
+    if (updated.affected === 0) {
+      throw new ConflictException(RACE_MESSAGE(name));
+    }
+
+    const saved = await this.findOneOrFail(name);
+
+    this.logger.warn("Instance features changed", {
+      name: saved.name,
+      features: saved.features,
+      previousFeatures: instance.features,
+    });
+
+    this.dispatchInstanceDeployment().catch((err: unknown) => {
+      this.logger.error(
+        new Error("Failed to dispatch GitHub workflow", { cause: err }),
+        { instance: saved.name },
+      );
+    });
+
+    return saved;
+  }
+
+  /**
    * Sets or unsets the image tag of each component present in `dto`, keeping
    * the others. The values are expected to already match `VERSION_PATTERN` —
    * enforced by `UpdateVersionsDto`, not re-checked here.
@@ -643,4 +692,22 @@ export class InstanceService implements OnModuleInit {
 
     return { name, available: true, reason: null };
   }
+}
+
+/**
+ * Takes an object with boolean values and returns a new object with false
+ * values dropped.
+ */
+function dropFalseValues(
+  object: Record<string, boolean>,
+): Record<string, true> {
+  return Object.fromEntries(
+    Object.entries(object).flatMap(([key, value]) => {
+      if (value === true) {
+        return [[key, value]] as const;
+      } else {
+        return [];
+      }
+    }),
+  );
 }

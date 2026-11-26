@@ -98,6 +98,15 @@ moving tag pins that component until it is changed again. Which components it
 applies a version to is decided there — one it does not deploy per instance
 ignores the value.
 
+### Features
+
+`features` switch optional parts of an instance's stack on or off:
+`permissions` (permission checks on every read and write), e.g.
+`{ "permissions": true }`. A missing feature, or `null`, means off. Changed through
+`PATCH /api/v1/instances/:name/features`.
+
+What each feature deploys is decided by the [cluster deployment][infra].
+
 ### Confirming the target
 
 Every admin route that writes to an existing instance
